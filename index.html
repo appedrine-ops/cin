@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a1013">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cin">
 <title>Cin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -86,9 +92,11 @@ a { color: inherit; text-decoration: none; }
 .burst { position: absolute; width: 96px; height: 96px; margin: -48px 0 0 -48px; pointer-events: none; animation: pop .7s ease-out forwards; }
 .burst svg { width: 100%; height: 100%; fill: var(--coral); }
 @keyframes pop { 0% { transform: scale(.4); opacity: 0; } 25% { transform: scale(1.1); opacity: 1; } 100% { transform: translateY(-40px) scale(1); opacity: 0; } }
-.mute { position: absolute; right: 12px; top: 118px; width: 36px; height: 36px; border-radius: 50%; background: rgba(10,16,19,.5); display: none; place-items: center; }
-.slide[data-kind="video"] .mute { display: grid; }
-.mute svg { width: 18px; height: 18px; fill: none; stroke: var(--paper); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mute { position: absolute; right: 12px; top: 118px; width: 42px; height: 42px; border-radius: 50%; background: rgba(10,16,19,.55); display: none; place-items: center; }
+.slide[data-kind="video"] .mute, .slide[data-kind="scene"] .mute { display: grid; }
+.mute.on { background: var(--saffron); }
+.mute.on svg { stroke: var(--ink); }
+.mute svg { width: 20px; height: 20px; fill: none; stroke: var(--paper); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .empty { height: 100%; display: grid; place-content: center; text-align: center; gap: 10px; padding: 32px; background: var(--ink); }
 .empty h2 { font-family: var(--display); font-size: 24px; margin: 0; text-wrap: balance; }
@@ -603,7 +611,7 @@ input[type="range"] { width: 100%; accent-color: var(--saffron); }
     else media = "<canvas></canvas>";
     el.innerHTML = media + '<div class="scrim"></div><div class="subs" hidden><span></span></div>' +
       '<div class="pausebadge"><span><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span></div>' +
-      '<button class="mute" data-act="mute" aria-label="Toggle sound"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" style="display:none" d="M16 9c1.3 1.7 1.3 4.3 0 6"/></svg></button>' +
+      '<button class="mute" data-act="mute" aria-label="Toggle sound"><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="w" style="display:none" d="M16 9c1.3 1.7 1.3 4.3 0 6M18.5 6.5c2.6 3 2.6 8 0 11"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>' +
       '<div class="meta"><div class="who">' + avatar(v.handle) + '<span class="handle">' + esc(v.handle) + '</span>' +
       (v.mine ? "" : '<button class="follow" data-act="follow" aria-pressed="false">Follow</button>') + '</div>' +
       '<div class="cap">' + esc(v.cap) + '</div>' +
@@ -661,6 +669,90 @@ input[type="range"] { width: 100%; accent-color: var(--saffron); }
     es.forEach(function (e) { if (e.isIntersecting && e.intersectionRatio >= 0.6) setActive(slides.indexOf(e.target)); });
   }, { root: feed, threshold: [0.6] });
 
+  /* ---------- sound ---------- */
+  var Ambient = (function () {
+    var ctx = null, master = null, nodes = [], timer = null, playing = "";
+    function ensure() {
+      if (ctx) return ctx;
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      try { ctx = new AC(); master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination); } catch (e) { ctx = null; }
+      return ctx;
+    }
+    function hz(root, n) { return root * Math.pow(2, n / 12); }
+    function noise() {
+      var len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0), i;
+      for (i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      var s = ctx.createBufferSource(); s.buffer = b; s.loop = true; s.start(); nodes.push(s); return s;
+    }
+    function osc(type, f, g, dest) {
+      var o = ctx.createOscillator(), a = ctx.createGain(); o.type = type; o.frequency.value = f; a.gain.value = g;
+      o.connect(a); a.connect(dest || master); o.start(); nodes.push(o); return { o: o, g: a };
+    }
+    function note(f, dur, vol, type) {
+      var t = ctx.currentTime, o = ctx.createOscillator(), a = ctx.createGain(); o.type = type || "sine"; o.frequency.value = f;
+      a.gain.setValueAtTime(0.0001, t); a.gain.linearRampToValueAtTime(vol, t + 0.03); a.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(a); a.connect(master); o.start(t); o.stop(t + dur + 0.1);
+    }
+    function filt(type, f, q) { var x = ctx.createBiquadFilter(); x.type = type; x.frequency.value = f; if (q) x.Q.value = q; return x; }
+    var MIN = [0, 3, 5, 7, 10, 12, 15], MAJ = [0, 2, 4, 7, 9, 12, 14];
+    var STYLES = {
+      dunes: function (r) {
+        var lp = filt("lowpass", 500); lp.connect(master); osc("triangle", 110, 0.22, lp); osc("triangle", 110.7, 0.18, lp); osc("sine", 164.8, 0.12, lp);
+        var lfo = osc("sine", 0.08, 260, lp.frequency);
+        timer = setInterval(function () { if (r() < 0.7) note(hz(220, MIN[Math.floor(r() * 5)]), 2.6, 0.07); }, 2400);
+      },
+      rain: function (r) {
+        var n = noise(), hp = filt("highpass", 900), lp = filt("lowpass", 7000), g = ctx.createGain(); g.gain.value = 0.3;
+        n.connect(hp); hp.connect(lp); lp.connect(g); g.connect(master);
+        timer = setInterval(function () { if (r() < 0.6) note(1400 + r() * 2200, 0.09, 0.03); }, 130);
+      },
+      orbits: function (r) {
+        var step = 0, pat = [0, 2, 4, 2, 5, 3, 1, 4];
+        timer = setInterval(function () { var n = MIN[pat[step % pat.length]]; step++; note(hz(262, n), 0.9, 0.07, "triangle"); if (step % 4 === 0) note(hz(131, MIN[0]), 1.6, 0.06); }, 380);
+      },
+      tide: function (r) {
+        var n = noise(), lp = filt("lowpass", 520, 1.2), g = ctx.createGain(); g.gain.value = 0.18;
+        n.connect(lp); lp.connect(g); g.connect(master);
+        osc("sine", 0.11, 0.14, g.gain); osc("sine", 82.4, 0.12);
+      },
+      bloom: function (r) {
+        timer = setInterval(function () { note(hz(392, MAJ[Math.floor(r() * 7)]), 3.2, 0.06); if (r() < 0.4) note(hz(196, MAJ[Math.floor(r() * 4)]), 3.6, 0.05); }, 1500);
+      }
+    };
+    function halt() {
+      clearInterval(timer); timer = null;
+      var old = nodes; nodes = [];
+      if (master && ctx) { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0, ctx.currentTime, 0.08); }
+      setTimeout(function () { old.forEach(function (n) { try { n.stop(); } catch (e) {} try { n.disconnect(); } catch (e) {} }); }, 400);
+      playing = "";
+    }
+    return {
+      play: function (style, seed) {
+        var key = style + ":" + seed; if (playing === key) return;
+        if (!ensure() || !STYLES[style]) return;
+        if (playing) halt();
+        try { if (ctx.state === "suspended") ctx.resume(); STYLES[style](rng((+seed || 1) + 7)); } catch (e) { return; }
+        playing = key; master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(0.7, ctx.currentTime, 0.4);
+      },
+      stop: function () { if (playing) halt(); },
+      unlock: function () { if (ensure() && ctx.state === "suspended") ctx.resume(); }
+    };
+  })();
+  function applySound() {
+    var el = slides[active]; if (!el) return;
+    var vd = el.querySelector("video"); if (vd) vd.muted = muted;
+    var mb = el.querySelector(".mute");
+    if (mb) { mb.classList.toggle("on", !muted); mb.querySelector(".w").style.display = muted ? "none" : ""; mb.querySelector(".x").style.display = muted ? "" : "none"; mb.setAttribute("aria-pressed", String(!muted)); }
+    if (el._v.kind === "scene" && !muted && !document.hidden) Ambient.play(el._v.type, el._v.seed); else Ambient.stop();
+  }
+  // Browsers only allow sound after a tap, so the first tap anywhere turns sound on (like other short-video apps).
+  var soundArmed = true;
+  document.addEventListener("pointerdown", function (e) {
+    if (!soundArmed) return; soundArmed = false; Ambient.unlock();
+    if (!e.target.closest(".mute") && muted) { muted = false; applySound(); }
+  }, true);
+  document.addEventListener("visibilitychange", applySound);
+
   function setActive(i) {
     if (i < 0 || i === active) return;
     var prev = slides[active]; active = i;
@@ -669,6 +761,7 @@ input[type="range"] { width: 100%; accent-color: var(--saffron); }
     cur.dataset.paused = "";
     var vid = cur.querySelector("video");
     if (vid) { vid.muted = muted; if (cur._v.trim) { try { vid.currentTime = cur._v.trim.s; } catch (e) {} } var pr = vid.play(); if (pr && pr.catch) pr.catch(function () {}); }
+    applySound();
   }
 
   function tick(now) {
@@ -715,7 +808,7 @@ input[type="range"] { width: 100%; accent-color: var(--saffron); }
       else if (a === "follow") { setReaction("follows", v.uid, !v.following); toast(!v.following ? "Following " + v.handle : "Unfollowed " + v.handle); }
       else if (a === "comment") openComments(el);
       else if (a === "share") openShare(el._v);
-      else if (a === "mute") { muted = !muted; var vd = el.querySelector("video"); if (vd) vd.muted = muted; el.querySelector(".mute .w").style.display = muted ? "none" : ""; toast(muted ? "Sound off" : "Sound on"); }
+      else if (a === "mute") { soundArmed = false; Ambient.unlock(); muted = !muted; applySound(); toast(muted ? "Sound off" : "Sound on"); }
       return;
     }
     var now = Date.now(), r = el.getBoundingClientRect();
