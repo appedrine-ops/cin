@@ -1,9 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1013">
 <title>Cin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Instrument+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: one phone-width column, full-height vertical snap feed; search + menu float on top; tools and profile open as bottom sheets. Single dark look by choice. */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+button, input, textarea { font: inherit; color: inherit; }
+ul, ol { list-style: none; }
 :root {
   --ink: #0a1013;
   --ink-2: #131c21;
@@ -149,6 +159,8 @@ input[type="range"] { width: 100%; accent-color: var(--saffron); }
 #toast.on { opacity: 1; transform: translate(-50%, 0); }
 @media (prefers-reduced-motion: reduce) { .sheet, .backdrop, #toast { transition: none; } .burst { animation-duration: .01s; } }
 </style>
+</head>
+<body>
 
 <div id="app">
   <div id="top">
@@ -1179,3 +1191,5 @@ input[type="range"] { width: 100%; accent-color: var(--saffron); }
   start();
 })();
 </script>
+</body>
+</html>
