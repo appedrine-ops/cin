@@ -1,6 +1,6 @@
-// Paste your two Supabase values between the quotes, then save.
-// Both are safe to be public: the database rules in schema.sql protect your data.
+// Cin connection settings. Both values are safe to be public:
+// the database rules in schema.sql protect everyone's data.
 window.CIN_CONFIG = {
-  url: "",   // Project URL, for example https://abcdxyz.supabase.co
-  key: ""    // Publishable (anon) key, a long text starting with eyJ or sb_publishable_
+  url: "https://vyxykinrcutorjvfyhnm.supabase.co",
+  key: "sb_publishable_n8rEqxFxYf7gXZ6fugL9kA_L4HQKiqw"
 };
