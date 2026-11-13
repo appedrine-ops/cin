@@ -120,10 +120,13 @@ if (CIN.configured) {
     clip.querySelector('.comments').onclick = () => { activeClip = v.id; window.renderComments(); $('#commentsModal').classList.add('show'); };
     clip.querySelector('.share').onclick = () => openShare(v.id);
     setupVideo(clip); setupInfo(clip); addFollow(clip);
+    if (v.videoVol != null) clip.querySelector('video').volume = v.videoVol;
     if (v.musicURL) {
       const vd = clip.querySelector('video'), au = new Audio(v.musicURL);
-      au.loop = true; au.volume = .7; au.muted = vd.muted;
-      clip.querySelector('.sound').textContent = (v.musicName || 'Music');
+      au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; au.muted = vd.muted;
+      const snd = clip.querySelector('.sound');
+      snd.textContent = (v.musicName || 'Music') + (v.musicLink ? ' · Jamendo' : '');
+      if (v.musicLink && /^https:\/\/(www\.)?jamendo\.com\//.test(v.musicLink)) { snd.style.cursor = 'pointer'; snd.onclick = () => window.open(v.musicLink, '_blank', 'noopener,noreferrer'); }
       vd.addEventListener('play', () => { try { au.currentTime = vd.currentTime; } catch (e) {} au.play().catch(() => {}); });
       vd.addEventListener('pause', () => au.pause());
       vd.addEventListener('volumechange', () => { au.muted = vd.muted; });
@@ -279,12 +282,12 @@ if (CIN.configured) {
       const tags = $('#tagInput').value.match(/[A-Za-z0-9_]+/g) || [];
       pb.disabled = true;
       try {
-        await CIN.publishVideo(f, { caption, tags, music: musicPick, musicFile: (window.CINX || {}).musicFile }, p => { pb.textContent = 'Uploading ' + p + '%'; });
+        await CIN.publishVideo(f, { caption, tags, music: musicPick, musicFile: (window.CINX || {}).musicFile, musicTrack: (window.CINX || {}).musicTrack, videoVol: (window.CINX || {}).vVol, musicVol: (window.CINX || {}).mVol }, p => { pb.textContent = 'Uploading ' + p + '%'; });
         state.posts++; $('#postCount').textContent = state.posts; logActivity('You published a new video');
         setPreview(false); if (window.CINX) CINX.reset(); $('#videoFile').value = ''; $('#captionInput').value = ''; $('#tagInput').value = '';
         navigate('home'); await loadFeed(true); $('#feed').scrollTo({ top: 0 }); toast('Your video is live');
       } catch (e) { toast('Upload failed. Check your connection and try again.'); }
-      finally { pb.disabled = false; pb.textContent = 'Publish video'; }
+      finally { pb.disabled = false; pb.textContent = 'Post'; }
     }); }
 
   // ---------- Circles ----------

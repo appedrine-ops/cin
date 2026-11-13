@@ -154,6 +154,7 @@
   });
   tagEl.after(chips);
 
+  X.clearFile = clearMusicFile; X.mFile = mFile;
   X.reset = () => { clearMusicFile(); showPreview(null); setTimeout(updCnt, 0); };
 
   // ======================= Camera =======================
@@ -242,10 +243,11 @@
     if (cd) { clearInterval(cd); cd = null; $('#camCount').style.display = 'none'; }
     stopStream(); cam.classList.remove('show'); secs = 0; paintShot();
   }
-  function useVideo(file) {
+  function useVideo(file, src) {
     const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
     if (X.closeStudio) X.closeStudio();
-    navigate('upload'); showPreview(file); toast('Video ready. Add a caption and publish.');
+    if (X.openEditor) X.openEditor(file, src || 'studio');
+    else { navigate('upload'); showPreview(file); }
   }
   function usePhoto(blob) {
     photoBlob = blob; $('#camRes img').src = URL.createObjectURL(blob); $('#camRes').classList.add('show'); cam.classList.add('show');
@@ -279,7 +281,7 @@
       if (dropped) return;
       closeCam();
       if (file.size > 100 * 1024 * 1024) { toast('That recording is too big (100 MB max)'); return; }
-      useVideo(file);
+      useVideo(file, 'cam');
     };
     rec.start(1000);
     tick = setInterval(() => { if (rec && rec.state === 'recording') { secs++; paintShot(); if (secs >= MAXS) stopRec(); } }, 1000);
@@ -427,8 +429,7 @@
       b.textContent = 'Next';
       b.onclick = () => {
         if (it.file.size > 100 * 1024 * 1024) { toast('Choose a video under 100 MB'); return; }
-        const dt = new DataTransfer(); dt.items.add(it.file); input.files = dt.files;
-        closeStudio(); navigate('upload'); showPreview(it.file);
+        useVideo(it.file, 'studio');
       };
     } else { b.textContent = 'Use as profile photo'; b.onclick = () => avatarFrom(it.file, b); }
     a.append(b);

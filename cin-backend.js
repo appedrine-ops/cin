@@ -67,7 +67,7 @@ export const CIN = {
 
   // ---------- Videos ----------
   // onProgress(0..100) is optional. Returns the new video id.
-  async publishVideo(file, { caption = "", tags = [], music = "off", musicFile = null } = {}, onProgress) {
+  async publishVideo(file, { caption = "", tags = [], music = "off", musicFile = null, musicTrack = null, videoVol = 1, musicVol = 0.7 } = {}, onProgress) {
     const uid = me(), profile = await CIN.getProfile(uid);
     const up = await cldUpload(file, "video", onProgress);
     let musicURL = "", musicName = "";
@@ -75,11 +75,14 @@ export const CIN = {
       const mu = await cldUpload(musicFile, "video");
       musicURL = mu.secure_url; musicName = musicFile.name.replace(/\.[^.]+$/, "").slice(0, 40);
     }
+    let musicLink = "";
+    if (musicTrack && musicTrack.url) { musicURL = musicTrack.url; musicName = (musicTrack.name + " — " + musicTrack.artist).slice(0, 80); musicLink = musicTrack.link || ""; }
+    const clamp = n => Math.max(0, Math.min(1, Number(n) || 0));
     const vref = doc(collection(db, "videos"));
     const b = writeBatch(db);
     b.set(vref, { uid, handle: profile.handle, caption: caption.slice(0, 150),
       tags: tags.map(t => t.toLowerCase().replace(/[^a-z0-9_]/g, "")).filter(Boolean).slice(0, 10),
-      music, musicURL, musicName, videoPath: up.public_id, videoURL: up.secure_url, likesCount: 0, commentsCount: 0, createdAt: serverTimestamp() });
+      music, musicURL, musicName, musicLink, videoVol: clamp(videoVol), musicVol: clamp(musicVol), videoPath: up.public_id, videoURL: up.secure_url, likesCount: 0, commentsCount: 0, createdAt: serverTimestamp() });
     b.update(doc(db, "users", uid), { postsCount: increment(1) });
     await b.commit();
     return vref.id;
