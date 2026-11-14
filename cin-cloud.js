@@ -127,10 +127,12 @@ if (CIN.configured) {
       const au = v.musicURL ? new Audio(v.musicURL) : null, snd = clip.querySelector('.sound'), me = 'ph' + v.id;
       if (au) { au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; snd.textContent = (v.musicName || 'Music') + (v.musicLink ? ' · Jamendo' : ''); }
       if (v.musicLink && /^https:\/\/(www\.)?jamendo\.com\//.test(v.musicLink)) { snd.style.cursor = 'pointer'; snd.onclick = () => window.open(v.musicLink, '_blank', 'noopener,noreferrer'); }
-      const on = () => { if (!state.settings.autoplay) return; window.__phNow = me; if (au) { au.muted = state.muted; try { au.currentTime = 0; } catch (e) {} au.play().catch(() => {}); } else if (!state.muted) Music.start(v.music, me); };
-      const off = () => { if (au) au.pause(); else if (window.__phNow === me) Music.stop(); if (window.__phNow === me) window.__phNow = null; };
+      let playing = false;
+      const on = force => { if (!force && !state.settings.autoplay) return; playing = true; window.__phNow = me; if (au) { au.muted = state.muted; try { au.currentTime = 0; } catch (e) {} au.play().catch(() => {}); } else if (!state.muted) Music.start(v.music, me); };
+      const off = () => { playing = false; if (au) au.pause(); else if (window.__phNow === me) Music.stop(); if (window.__phNow === me) window.__phNow = null; };
       const pio = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting && e.intersectionRatio >= .6) on(); else off(); }), { root: $('#feed'), threshold: [0, .6] });
       pio.observe(clip); clip._off = () => { pio.disconnect(); off(); };
+      clip._tap = () => { if (playing) { off(); return false; } on(true); return true; };
     } else if (v.musicURL && !photo) {
       const vd = clip.querySelector('video'), au = new Audio(v.musicURL);
       au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; au.muted = vd.muted;
@@ -156,8 +158,9 @@ if (CIN.configured) {
       let tt = null;
       clip.addEventListener('click', e => {
         if (e.target.closest('.actions,button,a,.clip-info')) return;
-        if (tt) { clearTimeout(tt); tt = null; return; }
-        tt = setTimeout(() => { tt = null; sv.classList.toggle('show'); }, 320);
+        const run = () => { const playingNow = clip._tap ? clip._tap() : null; if (playingNow === null) sv.classList.toggle('show'); else { sv.classList.toggle('show', !playingNow); flash(clip, CI.svg(playingNow ? 'play' : 'pause', 56)); } };
+        if (tt) { clearTimeout(tt); tt = null; run(); return; }
+        run(); tt = setTimeout(() => { tt = null; }, 320);
       });
       new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) sv.classList.remove('show'); }), { root: $('#feed'), threshold: [0] }).observe(clip);
     } else {
