@@ -1,7 +1,7 @@
 // CIN editor: after you record or pick a video you land here (Back / Next, Sound, Volume).
 // Sound library: Jamendo (free, licensed independent music). Paste your free Client ID below.
 (function () {
-  const JAMENDO_CLIENT_ID = "c474604a";
+  const JAMENDO_CLIENT_ID = (window.CIN_CONFIG && window.CIN_CONFIG.jamendoClientId) || "YOUR_JAMENDO_CLIENT_ID";
 
   const X = window.CINX; if (!X) return;
   const ic = (n, s) => CI.svg(n, s || 22);
@@ -19,6 +19,7 @@
   const css = document.createElement('style');
   css.textContent = `
 #upload{padding-top:18px}
+.savebtn{position:absolute;left:50%;top:58%;transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:8px;background:#000a;backdrop-filter:blur(6px);border:1px solid #fff3;color:#fff;font-weight:800;font-size:14px;padding:11px 18px;border-radius:26px}.savebtn.show{display:flex}
 .clip .pimg{width:100%;height:100%;object-fit:cover;background:#151823;display:block}
 .dhead{display:flex;align-items:center;justify-content:space-between;height:42px;margin-bottom:12px}.dhead b{font-size:17px}.dhead button{width:42px;height:42px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;color:#fff}.dhead span{width:42px}
 .dsum{display:flex;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:8px}.dsum img{width:84px;height:112px;border-radius:12px;object-fit:cover;background:#000;flex:none;display:none}.dsum.photo img{display:block}.dsum.photo video{display:none}.dsum video{width:84px;height:112px;border-radius:12px;object-fit:cover;background:#000;flex:none}.dinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}.dinfo b{font-size:15px}.dsound{font-size:12px;color:var(--accent);display:flex;gap:6px;align-items:center;overflow:hidden;white-space:nowrap}.dsound span{overflow:hidden;text-overflow:ellipsis}.dbtns{display:flex;gap:8px;margin-top:auto}.dbtns button{flex:1;padding:9px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px}

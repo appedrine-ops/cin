@@ -142,6 +142,29 @@ if (CIN.configured) {
       vd.addEventListener('volumechange', () => { au.muted = vd.muted; });
       vd.addEventListener('timeupdate', () => { if (vd.currentTime < .3 && au.currentTime > 1) au.currentTime = 0; });
     }
+    // tap to pause (video) or tap (photo) -> a Save button appears so anyone can keep a copy
+    const sv = document.createElement('button'); sv.type = 'button'; sv.className = 'savebtn'; sv.innerHTML = CI.svg('save', 20) + '<span>Save to phone</span>';
+    clip.append(sv);
+    sv.onclick = e => {
+      e.stopPropagation();
+      const src = photo ? v.photoURL : v.videoURL;
+      const href = /res\.cloudinary\.com/.test(src) ? src.replace('/upload/', '/upload/fl_attachment:cin-' + String(v.id).replace(/[^A-Za-z0-9]/g, '').slice(0, 12) + '/') : src;
+      const a = document.createElement('a'); a.href = href; a.download = 'cin-' + v.id + (photo ? '.jpg' : '.mp4'); a.rel = 'noopener';
+      document.body.append(a); a.click(); a.remove(); toast('Saving to your phone'); sv.classList.remove('show');
+    };
+    if (photo) {
+      let tt = null;
+      clip.addEventListener('click', e => {
+        if (e.target.closest('.actions,button,a,.clip-info')) return;
+        if (tt) { clearTimeout(tt); tt = null; return; }
+        tt = setTimeout(() => { tt = null; sv.classList.toggle('show'); }, 320);
+      });
+      new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) sv.classList.remove('show'); }), { root: $('#feed'), threshold: [0] }).observe(clip);
+    } else {
+      const vd2 = clip.querySelector('video');
+      vd2.addEventListener('pause', () => { if (vd2.currentTime > 0 && !vd2.ended) setTimeout(() => { if (vd2.paused) sv.classList.add('show'); }, 380); });
+      vd2.addEventListener('play', () => sv.classList.remove('show'));
+    }
     if (state.uid && v.uid === state.uid) { const f = clip.querySelector('.follow'); if (f) f.remove(); }
     return clip;
   }

@@ -36,6 +36,11 @@
     tech: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>',
     bookmark: '<path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z"/>',
     bookmarkFill: '<path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1z" fill="currentColor"/>',
+    chat: '<path d="M4 20l1.4-4.2A8 8 0 1 1 8.2 18.7z"/><path d="M9 10.5h6M9 13.5h4"/>',
+    send: '<path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/>',
+    people: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3 20c.5-3.6 3-5.5 6-5.5s5.5 1.9 6 5.5"/><circle cx="17" cy="9.5" r="2.5"/><path d="M17 14.6c2.3.2 3.8 1.7 4.2 4.4"/>',
+    mail: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M4 8l8 6 8-6"/>',
+    sms: '<path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/>'
   };
   function svg(name, size) {
