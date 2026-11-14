@@ -18,7 +18,7 @@ const firebaseConfig = {
 };
 
 // Free file hosting (no card needed): Cloudinary. Fill in from cloudinary.com > Dashboard.
-const CLD = { cloudName: "YOUR_CLOUD_NAME", preset: "YOUR_UPLOAD_PRESET" };
+const CLD = { cloudName: "xxxw6b6t", preset: "cin_uploads" }; 
 // Shrink big phone photos before upload (max 1600px, JPEG) so they post fast on mobile data.
 async function shrinkImage(file) {
   try {
