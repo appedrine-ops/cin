@@ -1,7 +1,7 @@
 // CIN editor: after you record or pick a video you land here (Back / Next, Sound, Volume).
 // Sound library: Jamendo (free, licensed independent music). Paste your free Client ID below.
 (function () {
-  const JAMENDO_CLIENT_ID = "YOUR_JAMENDO_CLIENT_ID";
+  const JAMENDO_CLIENT_ID = "c474604a";
 
   const X = window.CINX; if (!X) return;
   const ic = (n, s) => CI.svg(n, s || 22);
