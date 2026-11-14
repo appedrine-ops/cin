@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js";
+import { CIN } from "./cin-backend.js?v=7";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -36,12 +36,18 @@ if (CIN.configured) {
   const emailRow = mkRow('Email', 'joinEmail', 'email', 'you@example.com');
   const passRow = mkRow('Password', 'joinPass', 'password', 'At least 6 characters');
   handleRow.after(emailRow); emailRow.after(passRow);
+  // choose what you love: used to shape your For You feed
+  const TOPICS = ['Dance', 'Comedy', 'Education', 'Technology', 'Music', 'Lifestyle'], picked = new Set();
+  const intRow = document.createElement('div'); intRow.className = 'formrow';
+  intRow.innerHTML = '<label>What do you want to see? (pick any)</label><div class="intchips"></div>';
+  TOPICS.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => { picked.has(t) ? picked.delete(t) : picked.add(t); b.classList.toggle('on', picked.has(t)); }; intRow.querySelector('.intchips').append(b); });
+  passRow.after(intRow);
   const swap = document.createElement('button'); swap.className = 'secondary'; swap.style.cssText = 'width:100%;margin-top:10px';
   $('#joinBtn').after(swap);
   let mode = 'signup';
   function setMode(m) {
     mode = m; const login = m === 'login';
-    nameRow.style.display = handleRow.style.display = agree.style.display = login ? 'none' : '';
+    nameRow.style.display = handleRow.style.display = agree.style.display = intRow.style.display = login ? 'none' : '';
     $('#joinBtn').textContent = login ? 'Log in' : 'Join CIN';
     $('#authModal .sheethead strong').textContent = login ? 'Log in' : 'Join CIN';
     swap.textContent = login ? 'New here? Create an account' : 'I already have an account';
@@ -68,7 +74,8 @@ if (CIN.configured) {
         if (!n || !h) { toast('Add your name and a username'); return; }
         if (!$('#joinAge').checked) { toast('You must be 13 or older to join'); return; }
         signingUp = true;
-        await CIN.signUp({ email, password: pass, name: n, handle: h });
+        try { localStorage.setItem('cin_interests', JSON.stringify([...picked])); } catch (e) {}
+        await CIN.signUp({ email, password: pass, name: n, handle: h, interests: [...picked] });
         signingUp = false;
         await loadAccount(CIN.auth.currentUser);
       }
@@ -85,6 +92,7 @@ if (CIN.configured) {
     if (!p) { toast('Could not load your profile'); return; }
     state.account = true; state.uid = user.uid; state.name = p.name; state.handle = p.handle; state.posts = p.postsCount || 0;
     localStorage.setItem('cin_account', '1'); localStorage.setItem('cin_name', p.name); localStorage.setItem('cin_handle', p.handle);
+    if (Array.isArray(p.interests) && p.interests.length) { try { localStorage.setItem('cin_interests', JSON.stringify(p.interests)); } catch (e) {} }
     updateProfile(); paintAccount(); setTimeout(() => window.CINrefreshMine && window.CINrefreshMine(), 0);
     if (p.photoURL && window.CINX) CINX.paintAvatar(p.photoURL);
     $('#postCount').textContent = state.posts;
@@ -132,7 +140,7 @@ if (CIN.configured) {
       const off = () => { playing = false; if (au) au.pause(); else if (window.__phNow === me) Music.stop(); if (window.__phNow === me) window.__phNow = null; };
       const pio = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting && e.intersectionRatio >= .6) on(); else off(); }), { root: $('#feed'), threshold: [0, .6] });
       pio.observe(clip); clip._off = () => { pio.disconnect(); off(); };
-      clip._tap = () => { if (playing) { off(); return false; } on(true); return true; };
+      clip._tap = () => { const now = au ? !au.paused : playing; if (now) { off(); return false; } on(true); return true; };
     } else if (v.musicURL && !photo) {
       const vd = clip.querySelector('video'), au = new Audio(v.musicURL);
       au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; au.muted = vd.muted;
@@ -191,6 +199,18 @@ if (CIN.configured) {
         if (liked && !state.liked.includes(v.id)) state.liked.push(v.id);
         $('#feed').insertBefore(buildClip(v, liked), anchor);
       });
+      if (reset) {
+        // put videos that match what the member chose at sign-up first
+        let want = []; try { want = JSON.parse(localStorage.getItem('cin_interests') || '[]').map(x => x.toLowerCase()); } catch (e) {}
+        if (want.length) {
+          const alias = { technology: ['tech', 'technology', 'stem', 'science'], education: ['education', 'stem', 'learn'], music: ['music', 'song'], dance: ['dance'], comedy: ['comedy', 'funny'], lifestyle: ['lifestyle'] };
+          const keys = new Set(want.flatMap(w => alias[w] || [w]));
+          const cl = Array.from($$('.clip[data-cloud]')), hit = c => ((((c.querySelector('.tt') || c.querySelector('.tags') || {}).textContent) || '').toLowerCase().match(/#[a-z0-9_]+/g) || []).some(t => keys.has(t.slice(1)));
+          const top = cl.filter(hit), rest = cl.filter(c => !hit(c)), a = $('.clip[data-id="welcome"]');
+          [...top, ...rest].forEach(c => $('#feed').insertBefore(c, a));
+        }
+        $('#feed').scrollTop = 0;
+      }
       syncLikes(); renderPeople(); applyFeed(null, false); renderHub();
     } catch (e) { console.warn('Feed load failed', e); toast('Could not load the feed: ' + String((e && (e.code || e.message)) || 'error').slice(0, 60)); }
     finally { loading = false; }

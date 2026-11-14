@@ -54,14 +54,14 @@ export const CIN = {
   onUser: cb => onAuthStateChanged(auth, cb),
 
   // ---------- Accounts ----------
-  async signUp({ email, password, name, handle }) {
+  async signUp({ email, password, name, handle, interests = [] }) {
     handle = clean(handle);
     if (handle.length < 3) throw new Error("Username must be at least 3 characters");
     if ((await getDoc(doc(db, "handles", handle))).exists()) throw new Error("That username is taken");
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     const b = writeBatch(db);
     b.set(doc(db, "handles", handle), { uid: user.uid });
-    b.set(doc(db, "users", user.uid), { name: name.trim().slice(0, 30), handle, bio: "", photoURL: "", private: false,
+    b.set(doc(db, "users", user.uid), { name: name.trim().slice(0, 30), handle, bio: "", photoURL: "", private: false, interests: (interests || []).slice(0, 8).map(x => String(x).slice(0, 20)),
       followersCount: 0, followingCount: 0, postsCount: 0, createdAt: serverTimestamp() });
     await b.commit();
     return user;

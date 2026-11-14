@@ -19,6 +19,8 @@
   const css = document.createElement('style');
   css.textContent = `
 #upload{padding-top:18px}
+#feed{overflow-anchor:none}
+.intchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.intchips button{background:var(--panel2);color:#c5c8d3;border-radius:18px;padding:8px 14px;font-size:13px;font-weight:700}.intchips button.on{background:var(--accent);color:#10140b}
 .mygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:14px}.mytile{position:relative;aspect-ratio:3/4;background:#151823;border-radius:8px;overflow:hidden;padding:0}.mytile video,.mytile img{width:100%;height:100%;object-fit:cover;display:block}.mytile i{position:absolute;left:6px;bottom:6px;color:#fff;display:flex}
 .savebtn{position:absolute;left:50%;top:58%;transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:8px;background:#000a;backdrop-filter:blur(6px);border:1px solid #fff3;color:#fff;font-weight:800;font-size:14px;padding:11px 18px;border-radius:26px}.savebtn.show{display:flex}
 .clip .pimg{width:100%;height:100%;object-fit:cover;background:#151823;display:block}
