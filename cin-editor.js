@@ -19,6 +19,7 @@
   const css = document.createElement('style');
   css.textContent = `
 #upload{padding-top:18px}
+.mygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:14px}.mytile{position:relative;aspect-ratio:3/4;background:#151823;border-radius:8px;overflow:hidden;padding:0}.mytile video,.mytile img{width:100%;height:100%;object-fit:cover;display:block}.mytile i{position:absolute;left:6px;bottom:6px;color:#fff;display:flex}
 .savebtn{position:absolute;left:50%;top:58%;transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:8px;background:#000a;backdrop-filter:blur(6px);border:1px solid #fff3;color:#fff;font-weight:800;font-size:14px;padding:11px 18px;border-radius:26px}.savebtn.show{display:flex}
 .clip .pimg{width:100%;height:100%;object-fit:cover;background:#151823;display:block}
 .dhead{display:flex;align-items:center;justify-content:space-between;height:42px;margin-bottom:12px}.dhead b{font-size:17px}.dhead button{width:42px;height:42px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;color:#fff}.dhead span{width:42px}
@@ -294,4 +295,23 @@
     dv.removeAttribute('src'); stopSound(); paintSound();
   };
   paintSound();
+
+  // ---------- one tap = pause / play (double tap = like) ----------
+  { let lastT = 0, lastClip = null, was = false;
+    $('#feed').addEventListener('click', e => {
+      if (e.target.closest('.actions,button,a,.clip-info')) return;
+      const clip = e.target.closest('.clip'); if (!clip || !clip.dataset.id) return;
+      const v = clip.querySelector('video'); if (!v) return;
+      e.stopImmediatePropagation();
+      const now = Date.now();
+      if (now - lastT < 320 && lastClip === clip) {
+        lastT = 0; if (was) v.play().catch(() => {});
+        if (!state.liked.includes(clip.dataset.id)) toggleLike(clip.dataset.id);
+        burst(clip, e); return;
+      }
+      lastT = now; lastClip = clip; was = !v.paused;
+      v.muted = false;
+      if (v.paused) { v.play().catch(() => {}); flash(clip, CI.svg('play', 56)); }
+      else { v.pause(); flash(clip, CI.svg('pause', 56)); }
+    }, true); }
 })();

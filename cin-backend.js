@@ -120,8 +120,10 @@ export const CIN = {
     return (await getDocs(q)).docs.map(d => ({ id: d.id, ...d.data(), _snap: d }));
   },
   async getUserVideos(uid) {
-    const s = await getDocs(query(collection(db, "videos"), where("uid", "==", uid), orderBy("createdAt", "desc")));
-    return s.docs.map(d => ({ id: d.id, ...d.data() }));
+    // no orderBy here: sorting on this device means no extra Firestore index is needed
+    const s = await getDocs(query(collection(db, "videos"), where("uid", "==", uid)));
+    const t = x => (x.createdAt && x.createdAt.seconds) || 9e12;
+    return s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => t(b) - t(a));
   },
 
   // ---------- Likes ----------

@@ -85,7 +85,7 @@ if (CIN.configured) {
     if (!p) { toast('Could not load your profile'); return; }
     state.account = true; state.uid = user.uid; state.name = p.name; state.handle = p.handle; state.posts = p.postsCount || 0;
     localStorage.setItem('cin_account', '1'); localStorage.setItem('cin_name', p.name); localStorage.setItem('cin_handle', p.handle);
-    updateProfile(); paintAccount();
+    updateProfile(); paintAccount(); setTimeout(() => window.CINrefreshMine && window.CINrefreshMine(), 0);
     if (p.photoURL && window.CINX) CINX.paintAvatar(p.photoURL);
     $('#postCount').textContent = state.posts;
     const st = $$('.stats strong'); if (st[1]) st[1].textContent = p.followersCount || 0;
@@ -189,7 +189,7 @@ if (CIN.configured) {
         $('#feed').insertBefore(buildClip(v, liked), anchor);
       });
       syncLikes(); renderPeople(); applyFeed(null, false); renderHub();
-    } catch (e) { console.warn('Feed load failed', e); }
+    } catch (e) { console.warn('Feed load failed', e); toast('Could not load the feed: ' + String((e && (e.code || e.message)) || 'error').slice(0, 60)); }
     finally { loading = false; }
   }
   $('#feed').addEventListener('scroll', () => { const f = $('#feed'); if (!exhausted && f.scrollTop + f.clientHeight > f.scrollHeight - f.clientHeight * 1.6) loadFeed(false); }, { passive: true });
@@ -319,7 +319,7 @@ if (CIN.configured) {
         await (isPh ? CIN.publishPhoto : CIN.publishVideo)(f, { caption, tags, music: musicPick, musicFile: (window.CINX || {}).musicFile, musicTrack: (window.CINX || {}).musicTrack, videoVol: (window.CINX || {}).vVol, musicVol: (window.CINX || {}).mVol }, p => { pb.textContent = 'Uploading ' + p + '%'; });
         state.posts++; $('#postCount').textContent = state.posts; logActivity(isPh ? 'You published a new photo' : 'You published a new video');
         setPreview(false); if (window.CINX) CINX.reset(); $('#videoFile').value = ''; $('#captionInput').value = ''; $('#tagInput').value = '';
-        navigate('home'); await loadFeed(true); $('#feed').scrollTo({ top: 0 }); toast(isPh ? 'Your photo is live' : 'Your video is live');
+        navigate('home'); await loadFeed(true); $('#feed').scrollTo({ top: 0 }); refreshMine(); toast(isPh ? 'Your photo is live' : 'Your video is live');
       } catch (e) {
         console.warn('Post failed', e);
         const m = String((e && (e.code || e.message)) || '');
@@ -382,6 +382,36 @@ if (CIN.configured) {
         toast('Thanks. We will review this video.');
       }]));
   };
+
+  // ---------- My posts on the profile ----------
+  const mine = document.createElement('div'); mine.className = 'mygrid'; mine.id = 'myGrid';
+  $('#profile .empty').before(mine);
+  async function refreshMine() {
+    if (!state.uid) { mine.innerHTML = ''; $('#profile .empty').style.display = ''; return; }
+    try {
+      const list = await CIN.getUserVideos(state.uid);
+      mine.innerHTML = '';
+      $('#profile .empty').style.display = list.length ? 'none' : '';
+      $('#postCount').textContent = list.length; state.posts = list.length;
+      list.forEach(v => {
+        const t = document.createElement('button'); t.type = 'button'; t.className = 'mytile'; t.setAttribute('aria-label', 'Open post');
+        const photo = v.type === 'photo';
+        const m = document.createElement(photo ? 'img' : 'video');
+        if (photo) { m.src = v.photoURL; m.alt = ''; m.loading = 'lazy'; }
+        else { m.muted = true; m.preload = 'metadata'; m.setAttribute('playsinline', ''); m.src = v.videoURL + '#t=0.1'; }
+        t.append(m);
+        if (!photo) { const i = document.createElement('i'); i.innerHTML = CI.svg('play', 14); t.append(i); }
+        t.onclick = async () => {
+          navigate('home');
+          let c = clipEl(v.id); if (!c) { await loadFeed(true); c = clipEl(v.id); }
+          if (c) setTimeout(() => c.scrollIntoView(), 80); else toast('Scroll the feed to find it');
+        };
+        mine.append(t);
+      });
+    } catch (e) { console.warn('My posts failed', e); toast('Could not load your posts'); }
+  }
+  window.CINrefreshMine = refreshMine;
+  { const nav0 = window.navigate; window.navigate = function (s) { nav0.apply(this, arguments); if (s === 'profile') refreshMine(); }; }
 
   // ---------- Start ----------
   let first = true;
