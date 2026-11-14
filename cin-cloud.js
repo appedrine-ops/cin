@@ -127,7 +127,7 @@ if (CIN.configured) {
     if (v.music && v.music !== 'off') { clip.dataset.music = v.music; clip.querySelector('.sound').textContent = 'Auto music: ' + v.music[0].toUpperCase() + v.music.slice(1); }
     handleUid['@' + v.handle] = v.uid;
     clip.querySelector('.like').onclick = () => window.toggleLike(v.id);
-    clip.querySelector('.comments').onclick = () => { activeClip = v.id; window.renderComments(); $('#commentsModal').classList.add('show'); };
+    clip.querySelector('.comments').onclick = () => { if (v.allowComments === false) { toast('Comments are turned off for this post'); return; } activeClip = v.id; window.renderComments(); $('#commentsModal').classList.add('show'); };
     clip.querySelector('.share').onclick = () => openShare(v.id);
     setupVideo(clip); setupInfo(clip); addFollow(clip);
     if (v.videoVol != null && !photo) clip.querySelector('video').volume = v.videoVol;
@@ -154,7 +154,7 @@ if (CIN.configured) {
     }
     // tap to pause (video) or tap (photo) -> a Save button appears so anyone can keep a copy
     const sv = document.createElement('button'); sv.type = 'button'; sv.className = 'savebtn'; sv.innerHTML = CI.svg('save', 20) + '<span>Save to phone</span>';
-    clip.append(sv);
+    if (v.allowSave !== false || (state.uid && v.uid === state.uid)) clip.append(sv);
     sv.onclick = e => {
       e.stopPropagation();
       const src = photo ? v.photoURL : v.videoURL;
@@ -187,9 +187,17 @@ if (CIN.configured) {
         cursor = null; exhausted = false; state.liked = state.liked.filter(id => SEED[id] !== undefined);
       }
       if (exhausted) return;
-      const vids = await CIN.getFeed({ size: 10, after: cursor });
-      if (vids.length < 10) exhausted = true;
-      if (vids.length) cursor = vids[vids.length - 1]._snap;
+      const raw = await CIN.getFeed({ size: 10, after: cursor });
+      if (raw.length < 10) exhausted = true;
+      if (raw.length) cursor = raw[raw.length - 1]._snap;
+      // privacy: "only me" is hidden from others, "friends" only for people who follow each other
+      const okv = await Promise.all(raw.map(async v => {
+        const p = v.privacy || 'everyone';
+        if (p === 'everyone' || (state.uid && v.uid === state.uid)) return true;
+        if (p === 'only_me' || !state.uid) return false;
+        try { return await CIN.isFriend(v.uid); } catch (e) { return false; }
+      }));
+      const vids = raw.filter((_, i) => okv[i]);
       const likedSet = new Set();
       if (state.account) await Promise.all(vids.map(v => CIN.hasLiked(v.id).then(l => { if (l) likedSet.add(v.id); }).catch(() => {})));
       const anchor = $('.clip[data-id="welcome"]');
@@ -425,14 +433,83 @@ if (CIN.configured) {
         t.append(m);
         if (!photo) { const i = document.createElement('i'); i.innerHTML = CI.svg('play', 14); t.append(i); }
         t.onclick = async () => {
-          navigate('home');
-          let c = clipEl(v.id); if (!c) { await loadFeed(true); c = clipEl(v.id); }
-          if (c) setTimeout(() => c.scrollIntoView(), 80); else toast('Scroll the feed to find it');
+          openManager(v);
         };
+        if ((v.privacy || 'everyone') !== 'everyone') { const l = document.createElement('b'); l.className = 'lk'; l.innerHTML = CI.svg('lock', 14); t.append(l); }
         mine.append(t);
       });
     } catch (e) { console.warn('My posts failed', e); toast('Could not load your posts'); }
   }
+  // ---- manage one of my posts (privacy settings) ----
+  const mcss = document.createElement('style');
+  mcss.textContent = `.pm{position:absolute;inset:0;z-index:35;background:#07080c;display:none;flex-direction:column}.pm.show{display:flex}
+.pm-top{display:flex;align-items:center;justify-content:space-between;padding:14px 12px}.pm-top b{font-size:17px}.pm-top button{width:42px;height:42px;border-radius:50%;background:var(--panel2);color:#fff;display:grid;place-items:center}.pm-top span{width:42px}
+.pm-media{flex:1;min-height:0;background:#000;display:flex;align-items:center;justify-content:center}.pm-media img,.pm-media video{max-width:100%;max-height:100%;object-fit:contain}
+.pm-info{padding:12px 16px 4px}.pm-line{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px}.pm-badge{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border-radius:12px;padding:3px 9px;font-size:12px;color:var(--accent)}.pm-cap{margin:6px 0;color:#dfe1e8;font-size:14px}.pm-stats{display:flex;gap:16px;color:var(--muted);font-size:13px}
+.pm-bar{display:flex;gap:10px;padding:10px 16px calc(14px + env(safe-area-inset-bottom))}.pm-bar button{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;font-size:14px}
+.pm-sheet{position:absolute;left:0;right:0;bottom:0;max-height:88%;overflow:auto;background:#14161d;border-radius:22px 22px 0 0;transform:translateY(110%);transition:transform .25s;visibility:hidden;padding:6px 16px calc(18px + env(safe-area-inset-bottom));z-index:2}.pm-sheet.show{transform:none;visibility:visible}
+.pm-sh-h{display:flex;align-items:center;justify-content:space-between;padding:12px 0}.pm-sh-h b{font-size:17px}.pm-sh-h button{background:none;color:#fff;padding:6px}
+.pm-card{background:#1d2029;border-radius:16px;padding:6px 14px;margin-bottom:12px}.pm-card h4{margin:12px 0 4px;font-size:15px}
+.pm-opt{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:none;color:#fff;text-align:left;padding:12px 0}.pm-opt small{display:block;color:var(--muted);font-size:12px;margin-top:3px;font-weight:500}.pm-opt .rdo{display:grid;font-style:normal;width:24px;height:24px;border-radius:50%;border:2px solid #4a4f5e;flex:none;display:grid;place-items:center}.pm-opt.on .rdo{border-color:var(--accent)}.pm-opt.on .rdo:after{content:'';width:12px;height:12px;border-radius:50%;background:var(--accent)}
+.pm-sw{display:block;width:50px;height:30px;border-radius:15px;background:#3a3f4d;position:relative;flex:none;transition:background .2s}.pm-sw:after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}.pm-opt.on .pm-sw{background:var(--accent)}.pm-opt.on .pm-sw:after{transform:translateX(20px)}
+.pm-cap-in{width:100%;background:#14161d;border:1px solid var(--line);border-radius:12px;padding:12px;color:#fff;outline:0;margin:8px 0;resize:none}.pm-sheet .primary,.pm-sheet .secondary{width:100%;margin:4px 0}.pm-del{background:#3a1620;color:#ff7a90;font-weight:800;border-radius:14px;padding:13px;width:100%;margin-top:6px}
+.mytile .lk{position:absolute;right:6px;top:6px;color:#fff;display:flex;background:#0009;border-radius:8px;padding:3px}`;
+  document.head.append(mcss);
+  const pm = document.createElement('div'); pm.className = 'pm'; pm.id = 'pm';
+  pm.innerHTML = '<div class="pm-top"><button type="button" id="pmBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Your post</b><span></span></div><div class="pm-media" id="pmMedia"></div>' +
+    '<div class="pm-info"><div class="pm-line"><span id="pmWho"></span><span class="pm-badge" id="pmBadge"></span></div><div class="pm-cap" id="pmCap"></div><div class="pm-stats"><span id="pmLikes"></span><span id="pmComm"></span><span id="pmAge"></span></div></div>' +
+    '<div class="pm-bar"><button type="button" class="primary" id="pmPriv">' + CI.svg('lock', 18) + 'Privacy settings</button><button type="button" class="secondary" id="pmView">View in feed</button></div>' +
+    '<div class="pm-sheet" id="pmSheet"><div class="pm-sh-h"><b>Privacy settings</b><button type="button" id="pmClose" aria-label="Close">' + CI.svg('close', 22) + '</button></div>' +
+    '<div class="pm-card"><h4>Who can see this post</h4>' +
+    '<button type="button" class="pm-opt" data-p="everyone"><span>Everyone</span><i class="rdo"></i></button>' +
+    '<button type="button" class="pm-opt" data-p="friends"><span>Friends<small>People you follow who follow you back</small></span><i class="rdo"></i></button>' +
+    '<button type="button" class="pm-opt" data-p="only_me"><span>Only you</span><i class="rdo"></i></button></div>' +
+    '<div class="pm-card"><button type="button" class="pm-opt" id="pmCom"><span>Allow comments</span><i class="pm-sw"></i></button>' +
+    '<button type="button" class="pm-opt" id="pmSave"><span>Allow saving<small>Lets people download this post to their phone</small></span><i class="pm-sw"></i></button></div>' +
+    '<div class="pm-card"><h4>Caption</h4><textarea class="pm-cap-in" id="pmCapIn" maxlength="150" rows="2"></textarea><button type="button" class="secondary" id="pmCapSave">Save caption</button></div>' +
+    '<button type="button" class="pm-del" id="pmDel">Delete this post</button></div>';
+  $('.app').append(pm);
+  let cur = null, dirty = false;
+  const PL = { everyone: 'Everyone', friends: 'Friends', only_me: 'Only you' };
+  const age = v => { const s = v.createdAt && v.createdAt.seconds; if (!s) return 'Just now'; const d = Math.floor((Date.now() / 1000 - s) / 86400); return d < 1 ? 'Today' : d + 'd ago'; };
+  function paintMgr() {
+    const p = cur.privacy || 'everyone';
+    $('#pmBadge').innerHTML = CI.svg(p === 'everyone' ? 'sun' : 'lock', 13) + ' ' + PL[p];
+    $$('#pmSheet [data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === p));
+    $('#pmCom').classList.toggle('on', cur.allowComments !== false);
+    $('#pmSave').classList.toggle('on', cur.allowSave !== false);
+    $('#pmCap').textContent = cur.caption || '';
+  }
+  function openManager(v) {
+    cur = v; dirty = false;
+    const photo = v.type === 'photo', box = $('#pmMedia'); box.innerHTML = '';
+    const m = document.createElement(photo ? 'img' : 'video');
+    if (photo) { m.src = v.photoURL; m.alt = ''; } else { m.src = v.videoURL; m.controls = true; m.playsInline = true; m.loop = true; }
+    box.append(m);
+    $('#pmWho').textContent = '@' + v.handle + ' · ' + (photo ? 'Photo' : 'Video');
+    $('#pmLikes').textContent = (v.likesCount || 0) + ' likes'; $('#pmComm').textContent = (v.commentsCount || 0) + ' comments'; $('#pmAge').textContent = age(v);
+    $('#pmCapIn').value = v.caption || ''; paintMgr(); $('#pmSheet').classList.remove('show'); pm.classList.add('show');
+  }
+  async function closeManager() {
+    const vv = $('#pmMedia video'); if (vv) vv.pause(); $('#pmMedia').innerHTML = ''; pm.classList.remove('show'); $('#pmSheet').classList.remove('show');
+    if (dirty) { dirty = false; refreshMine(); loadFeed(true); }
+  }
+  async function save(fields, msg) {
+    try { await CIN.updatePost(cur.id, fields); Object.assign(cur, fields); dirty = true; paintMgr(); toast(msg || 'Saved'); }
+    catch (e) { console.warn(e); toast(/permission/i.test(String((e && (e.code || e.message)) || '')) ? 'Firebase blocked this. Publish the new Firestore rules first.' : 'Could not save. Try again.'); }
+  }
+  $('#pmBack').onclick = closeManager;
+  $('#pmPriv').onclick = () => { const v = $('#pmMedia video'); if (v) v.pause(); $('#pmSheet').classList.add('show'); };
+  $('#pmClose').onclick = () => $('#pmSheet').classList.remove('show');
+  $$('#pmSheet [data-p]').forEach(b => b.onclick = () => save({ privacy: b.dataset.p }, 'Now visible to: ' + PL[b.dataset.p]));
+  $('#pmCom').onclick = () => save({ allowComments: cur.allowComments === false }, cur.allowComments === false ? 'Comments on' : 'Comments off');
+  $('#pmSave').onclick = () => save({ allowSave: cur.allowSave === false }, cur.allowSave === false ? 'Saving allowed' : 'Saving turned off');
+  $('#pmCapSave').onclick = () => save({ caption: $('#pmCapIn').value.trim() }, 'Caption saved');
+  $('#pmDel').onclick = async () => {
+    if (!confirm('Delete this post for good?')) return;
+    try { await CIN.deleteVideo(cur.id); dirty = false; closeManager(); refreshMine(); loadFeed(true); toast('Post deleted'); } catch (e) { toast('Could not delete. Try again.'); }
+  };
+  $('#pmView').onclick = async () => { const id = cur.id; await closeManager(); navigate('home'); let c = clipEl(id); if (!c) { await loadFeed(true); c = clipEl(id); } if (c) setTimeout(() => c.scrollIntoView(), 80); else toast('Scroll the feed to find it'); };
   window.CINrefreshMine = refreshMine;
   { const nav0 = window.navigate; window.navigate = function (s) { nav0.apply(this, arguments); if (s === 'profile') refreshMine(); }; }
 

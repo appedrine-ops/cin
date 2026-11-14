@@ -95,12 +95,26 @@ export const CIN = {
     const b = writeBatch(db);
     b.set(vref, { uid, handle: profile.handle, caption: caption.slice(0, 150),
       tags: tags.map(t => t.toLowerCase().replace(/[^a-z0-9_]/g, "")).filter(Boolean).slice(0, 10),
-      music, musicURL, musicName, musicLink, videoVol: clamp(videoVol), musicVol: clamp(musicVol), type: photo ? "photo" : "video", photoURL: photo ? up.secure_url : "", videoPath: up.public_id, videoURL: photo ? "" : up.secure_url, likesCount: 0, commentsCount: 0, createdAt: serverTimestamp() });
+      music, musicURL, musicName, musicLink, videoVol: clamp(videoVol), musicVol: clamp(musicVol), privacy: "everyone", allowComments: true, allowSave: true, type: photo ? "photo" : "video", photoURL: photo ? up.secure_url : "", videoPath: up.public_id, videoURL: photo ? "" : up.secure_url, likesCount: 0, commentsCount: 0, createdAt: serverTimestamp() });
     b.update(doc(db, "users", uid), { postsCount: increment(1) });
     await b.commit();
     return vref.id;
   },
   async publishPhoto(file, opts, onProgress) { return CIN.publishVideo(file, { ...(opts || {}), kind: "photo" }, onProgress); },
+  // owner-only post settings: privacy ("everyone" | "friends" | "only_me"), allowComments, allowSave, caption
+  async updatePost(id, f) {
+    const o = {};
+    if (f.privacy && ["everyone", "friends", "only_me"].includes(f.privacy)) o.privacy = f.privacy;
+    if (typeof f.allowComments === "boolean") o.allowComments = f.allowComments;
+    if (typeof f.allowSave === "boolean") o.allowSave = f.allowSave;
+    if (typeof f.caption === "string") o.caption = f.caption.slice(0, 150);
+    await updateDoc(doc(db, "videos", id), o);
+  },
+  // friends = we follow each other
+  async isFriend(ownerUid) {
+    const a = await getDoc(doc(db, "users", me(), "following", ownerUid)), b = await getDoc(doc(db, "users", ownerUid, "following", me()));
+    return a.exists() && b.exists();
+  },
   async deleteVideo(id, path) {
     await deleteDoc(doc(db, "videos", id));
     await updateDoc(doc(db, "users", me()), { postsCount: increment(-1) });
