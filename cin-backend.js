@@ -100,6 +100,26 @@ export const CIN = {
     await b.commit();
     return vref.id;
   },
+  // ---------- LIVE (video goes phone-to-phone with WebRTC; Firestore only carries the handshake and chat) ----------
+  live: {
+    async start(title) {
+      const uid = me(), p = await CIN.getProfile(uid), ref = doc(collection(db, "lives"));
+      await setDoc(ref, { uid, handle: p.handle, title: String(title || "").slice(0, 80) || "Live on CIN", status: "live", viewers: 0, lastBeat: serverTimestamp(), createdAt: serverTimestamp() });
+      return ref.id;
+    },
+    beat: (id, viewers) => updateDoc(doc(db, "lives", id), { lastBeat: serverTimestamp(), viewers }),
+    end: id => updateDoc(doc(db, "lives", id), { status: "ended" }),
+    watchAll: cb => onSnapshot(query(collection(db, "lives"), where("status", "==", "live")), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() })))),
+    watchOne: (id, cb) => onSnapshot(doc(db, "lives", id), s => cb(s.exists() ? { id, ...s.data() } : null)),
+    // host: new or changed viewer handshakes
+    watchPeers: (id, cb) => onSnapshot(collection(db, "lives", id, "peers"), s => s.docChanges().forEach(c => cb(c.type, c.doc.id, c.doc.data()))),
+    async sendOffer(id, offer) { const p = await CIN.getProfile(me()); return setDoc(doc(db, "lives", id, "peers", me()), { uid: me(), handle: p.handle, offer, createdAt: serverTimestamp() }); },
+    sendAnswer: (id, peerId, answer) => updateDoc(doc(db, "lives", id, "peers", peerId), { answer }),
+    watchPeer: (id, cb) => onSnapshot(doc(db, "lives", id, "peers", me()), s => cb(s.exists() ? s.data() : null)),
+    dropPeer: id => deleteDoc(doc(db, "lives", id, "peers", me())).catch(() => {}),
+    watchChat: (id, cb) => onSnapshot(query(collection(db, "lives", id, "chat"), orderBy("createdAt", "desc"), limit(40)), s => cb(s.docs.map(d => d.data()).reverse())),
+    async sendChat(id, text) { const p = await CIN.getProfile(me()); return addDoc(collection(db, "lives", id, "chat"), { uid: me(), handle: p.handle, text: String(text).slice(0, 200), createdAt: serverTimestamp() }); }
+  },
   async publishPhoto(file, opts, onProgress) { return CIN.publishVideo(file, { ...(opts || {}), kind: "photo" }, onProgress); },
   // owner-only post settings: privacy ("everyone" | "friends" | "only_me"), allowComments, allowSave, caption
   async updatePost(id, f) {

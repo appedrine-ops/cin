@@ -400,7 +400,7 @@
     '</div><button class="st-new" id="stNew" type="button"><b>' + ic('plus', 18) + '</b>New video</button>' +
     '<h3>Auto music</h3><div class="opts" id="stMood"><button data-m="off">Off</button><button data-m="chill">Chill</button><button data-m="upbeat">Upbeat</button><button data-m="inspire">Inspire</button></div>' +
     '<p class="st-hint">Each video gets its own tune. Pick a mood, or add your own song with <b>Add sound</b>, then record or choose a video.</p></div>' +
-    '<div class="st-pane" id="stLive"><div class="st-live"><div class="ico-big">' + ic('live', 44) + '</div><h2>Go LIVE</h2><p>Live streaming is coming soon. It needs a streaming service connected to CIN, so it is not switched on yet.</p><input id="stLiveTitle" maxlength="60" placeholder="Add a title"><button class="st-golive" id="stGoLive" type="button">Go LIVE</button></div></div>' +
+    '<div class="st-pane" id="stLive"><div class="st-live"><div class="ico-big">' + ic('live', 44) + '</div><h2>Go LIVE</h2><p>Stream live from your camera. A few people can watch at once and chat with you. Best on Wi-Fi or a strong signal.</p><input id="stLiveTitle" maxlength="60" placeholder="Add a title"><button class="st-golive" id="stGoLive" type="button">Go LIVE</button></div></div>' +
     '<div class="st-tabs"><button data-st="post" class="on">POST</button><button data-st="create">CREATE</button><button data-st="live">LIVE</button></div>' +
     '<div class="st-text" id="stText"><div class="st-thead"><button id="stTBack" aria-label="Back">' + ic('back', 22) + '</button><b>Text image</b><span></span></div>' +
     '<canvas id="stCanvas" width="1080" height="1350"></canvas><textarea id="stTxt" maxlength="220" placeholder="Type your words..."></textarea>' +
