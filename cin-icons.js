@@ -48,8 +48,14 @@
     const s = size || 24;
     return '<svg class="ico" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[name] || '') + '</svg>';
   }
+  // blue verification badge (filled)
+  const TIERS = { blue: '#1d9bf0', red: '#ff3b30', green: '#1fb455' };
+  function verified(size, tier) {
+    const s = size || 16, col = TIERS[tier] || TIERS.blue;
+    return '<svg class="vb" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" aria-label="Verified" role="img"><path d="M12 2l2.4 1.7 2.9-.2 1.1 2.7 2.5 1.5-.8 2.8.8 2.8-2.5 1.5-1.1 2.7-2.9-.2L12 22l-2.4-1.7-2.9.2-1.1-2.7-2.5-1.5.8-2.8-.8-2.8 2.5-1.5 1.1-2.7 2.9.2z" fill="' + col + '"/><path d="M8 12.2l2.8 2.8 5.4-5.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
   window.CI = {
-    svg: svg,
+    svg: svg, verified: verified,
     heart: svg('heart', 30), heartFill: svg('heartFill', 30),
     comment: svg('comment', 30), share: svg('share', 30)
   };

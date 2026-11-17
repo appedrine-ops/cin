@@ -2,7 +2,7 @@
 // Include in index.html with <script type="module" src="cin-backend.js"></script>
 // and fill in firebaseConfig from Firebase Console > Project settings > Your apps > Web.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged }
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendEmailVerification }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, collection, query, where, orderBy, limit,
   getDocs, writeBatch, increment, serverTimestamp, onSnapshot, startAfter }
@@ -100,6 +100,8 @@ export const CIN = {
     await b.commit();
     return vref.id;
   },
+  // real time: the 3 newest posts, pushed to the phone the moment someone uploads
+  watchNewest: cb => onSnapshot(query(collection(db, "videos"), orderBy("createdAt", "desc"), limit(3)), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => {}),
   // ---------- LIVE (video goes phone-to-phone with WebRTC; Firestore only carries the handshake and chat) ----------
   live: {
     async start(title) {
@@ -195,6 +197,12 @@ export const CIN = {
     await b.commit();
     return !on;
   },
+  // ---------- verification (only an admin can give or remove the blue tick) ----------
+  async isAdmin() { try { const s = await getDoc(doc(db, "admins", me())); return s.exists(); } catch (e) { return false; } },
+  // tiers: "" (none) | "blue" (confirmed member) | "red" (leaders, politicians, businesses) | "green" (heads of state, royalty)
+  setTier: (uid, tier) => updateDoc(doc(db, "users", uid), { tier: tier || "", verified: !!tier }),
+
+  async listVerified() { const s = await getDocs(query(collection(db, "users"), where("verified", "==", true), limit(50))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
   async searchUsers(prefix) {
     const p = clean(prefix);
     if (!p) return [];

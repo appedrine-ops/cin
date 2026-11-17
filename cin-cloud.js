@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=8";
+import { CIN } from "./cin-backend.js?v=12";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -86,6 +86,71 @@ if (CIN.configured) {
   };
 
   // ---------- Account state ----------
+  // ---------- verification badges ----------
+  const vCache = new Map();
+  const vcss = document.createElement('style');
+  vcss.textContent = '.vbadge{display:inline-flex;vertical-align:-3px;margin-left:5px}.vbadge svg{display:block}.admbtn{width:100%;margin-top:10px;padding:14px;border-radius:16px;background:#14161d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.adm{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.adm.show{display:flex}.adm-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.adm-top b{flex:1;font-size:17px}.adm-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.adm input{margin:4px 16px 10px;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:14px;color:#fff;font-size:16px;outline:0}.adm-list{flex:1;overflow:auto;padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}.adm-row{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:14px;padding:11px}.adm-row .t{flex:1;min-width:0}.adm-row .t b{display:flex;align-items:center;font-size:15px}.adm-row .t>span{display:block;color:#9aa0b0;font-size:13px}.adm-row button{padding:9px 14px;border-radius:18px;font-weight:800;font-size:13px;background:#1d9bf0;color:#fff}.adm-row button.rm{background:#2a2d3a;color:#ff7a90}.adm-h{color:#9aa0b0;font-size:13px;padding:6px 16px}';
+  document.head.append(vcss);
+  const tierOf = p => (p && (p.tier || (p.verified ? 'blue' : ''))) || '';
+  const TIER_NAME = { blue: 'Blue: verified member', red: 'Red: leaders, politicians and businesses', green: 'Green: heads of state and royalty' };
+  const badgeEl = tier => { const s = document.createElement('span'); s.className = 'vbadge'; s.title = TIER_NAME[tier] || ''; s.innerHTML = CI.verified(15, tier || 'blue'); return s; };
+  function paintBadges() {
+    $$('.clip[data-cloud]').forEach(c => { const cr = c.querySelector('.creator'); const t = vCache.get(c.dataset.uid); if (cr && t && !cr.querySelector('.vbadge')) cr.append(badgeEl(t)); });
+  }
+  async function loadBadges() {
+    const need = [...new Set(Array.from($$('.clip[data-cloud]')).map(c => c.dataset.uid))].filter(u => u && !vCache.has(u));
+    await Promise.all(need.map(u => CIN.getProfile(u).then(p => vCache.set(u, tierOf(p))).catch(() => vCache.set(u, ''))));
+    paintBadges();
+  }
+  window.CINloadBadges = loadBadges;
+  { const up0 = window.updateProfile; window.updateProfile = function () { up0.apply(this, arguments); paintMyBadge(); }; }
+  function paintMyBadge() {
+    const n = $('#profileName'); if (!n) return; const old = n.querySelector('.vbadge'); if (old) old.remove();
+    if (state.tier) n.append(badgeEl(state.tier));
+  }
+  // admin panel: search a member and give or remove the blue tick
+  const adm = document.createElement('div'); adm.className = 'adm'; adm.id = 'adm';
+  adm.innerHTML = '<div class="adm-top"><button type="button" id="admBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Verification</b></div><input id="admQ" placeholder="Search a username" autocomplete="off"><div class="adm-list" id="admList"></div>';
+  $('.app').append(adm);
+  function admRow(u) {
+    const cur = tierOf(u), r = document.createElement('div'); r.className = 'adm-row'; r.style.flexWrap = 'wrap';
+    r.innerHTML = '<span class="lv-av" style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#2fb58a);color:#10140b;display:grid;place-items:center;font-weight:900;flex:none"></span><span class="t"><b></b><span></span></span><div class="adm-tiers" style="width:100%;display:flex;gap:6px"></div>';
+    r.querySelector('.lv-av').textContent = ((u.name || u.handle || '?')[0] || '?').toUpperCase();
+    r.querySelector('b').textContent = '@' + u.handle; if (cur) r.querySelector('b').append(badgeEl(cur));
+    r.querySelector('.t > span').textContent = u.name || '';
+    const box = r.querySelector('.adm-tiers');
+    [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['', 'None', '#3a3f4d']].forEach(([t, label, col]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+      b.style.cssText = 'flex:1;padding:9px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + (cur === t ? col : '#1d2029') + ';border:2px solid ' + col;
+      b.onclick = async () => {
+        if (cur === t) return; b.disabled = true;
+        try { await CIN.setTier(u.id, t); u.tier = t; u.verified = !!t; vCache.set(u.id, t); r.replaceWith(admRow(u)); toast(t ? '@' + u.handle + ' now has the ' + label.toLowerCase() + ' tick' : 'Tick removed'); }
+        catch (e) { b.disabled = false; toast('Firebase blocked this. Publish the new Firestore rules and add yourself as admin.'); }
+      };
+      box.append(b);
+    });
+    return r;
+  }
+  async function admLoad(q) {
+    const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
+    try {
+      const items = q ? await CIN.searchUsers(q) : await CIN.listVerified();
+      list.innerHTML = '<div class="adm-h">' + (q ? 'Results' : 'Verified members') + '</div>';
+      if (!items.length) list.innerHTML += '<div class="adm-h">' + (q ? 'No member found.' : 'Nobody is verified yet. Search a username above.') + '</div>';
+      items.forEach(u => list.append(admRow(u)));
+    } catch (e) { list.innerHTML = '<div class="adm-h">Could not load members.</div>'; }
+  }
+  let admT = null;
+  $('#admQ').oninput = () => { clearTimeout(admT); admT = setTimeout(() => admLoad($('#admQ').value.trim().toLowerCase().replace(/^@/, '')), 300); };
+  $('#admBack').onclick = () => adm.classList.remove('show');
+  function paintAdmin() {
+    let b = $('#admBtn');
+    if (!state.admin) { if (b) b.remove(); return; }
+    if (b) return;
+    b = document.createElement('button'); b.type = 'button'; b.id = 'admBtn'; b.className = 'admbtn'; b.innerHTML = CI.verified(18, 'red') + ' Verification (admin)';
+    b.onclick = () => { $('#admQ').value = ''; adm.classList.add('show'); admLoad(''); };
+    $('#editProfile').after(b);
+  }
   async function loadAccount(user) {
     let p = null;
     for (let i = 0; i < 6 && !p; i++) { p = await CIN.getProfile(user.uid); if (!p) await sleep(500); }
@@ -93,6 +158,8 @@ if (CIN.configured) {
     state.account = true; state.uid = user.uid; state.name = p.name; state.handle = p.handle; state.posts = p.postsCount || 0;
     localStorage.setItem('cin_account', '1'); localStorage.setItem('cin_name', p.name); localStorage.setItem('cin_handle', p.handle);
     if (Array.isArray(p.interests) && p.interests.length) { try { localStorage.setItem('cin_interests', JSON.stringify(p.interests)); } catch (e) {} }
+    state.tier = tierOf(p); vCache.set(user.uid, state.tier); paintMyBadge();
+    CIN.isAdmin().then(a => { state.admin = a; paintAdmin(); });
     updateProfile(); paintAccount(); setTimeout(() => window.CINrefreshMine && window.CINrefreshMine(), 0);
     if (p.photoURL && window.CINX) CINX.paintAvatar(p.photoURL);
     $('#postCount').textContent = state.posts;
@@ -207,6 +274,7 @@ if (CIN.configured) {
         if (liked && !state.liked.includes(v.id)) state.liked.push(v.id);
         $('#feed').insertBefore(buildClip(v, liked), anchor);
       });
+      loadBadges();
       if (reset) {
         // put videos that match what the member chose at sign-up first
         let want = []; try { want = JSON.parse(localStorage.getItem('cin_interests') || '[]').map(x => x.toLowerCase()); } catch (e) {}
@@ -512,6 +580,28 @@ if (CIN.configured) {
   $('#pmView').onclick = async () => { const id = cur.id; await closeManager(); navigate('home'); let c = clipEl(id); if (!c) { await loadFeed(true); c = clipEl(id); } if (c) setTimeout(() => c.scrollIntoView(), 80); else toast('Scroll the feed to find it'); };
   window.CINrefreshMine = refreshMine;
   { const nav0 = window.navigate; window.navigate = function (s) { nav0.apply(this, arguments); if (s === 'profile') refreshMine(); }; }
+
+  // ---------- real time: new posts from other people ----------
+  { const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'newpill'; pill.style.display = 'none'; $('.app').append(pill);
+    const css2 = document.createElement('style');
+    css2.textContent = '.newpill{position:absolute;top:76px;left:50%;transform:translateX(-50%);z-index:20;background:var(--accent);color:#10140b;font-weight:900;font-size:14px;padding:10px 18px;border-radius:24px;box-shadow:0 6px 20px #0008;display:flex;align-items:center;gap:8px}';
+    document.head.append(css2);
+    const known = new Set(), fresh = new Set(); let first = true;
+    CIN.watchNewest(async list => {
+      if (first) { first = false; list.forEach(v => known.add(v.id)); return; }
+      for (const v of list) {
+        if (known.has(v.id) || !v.createdAt) continue; known.add(v.id);
+        if (state.uid && v.uid === state.uid) continue;
+        const p = v.privacy || 'everyone';
+        if (p === 'only_me') continue;
+        if (p === 'friends') { let ok = false; try { ok = !!state.uid && await CIN.isFriend(v.uid); } catch (e) {} if (!ok) continue; }
+        if (clipEl(v.id)) continue; fresh.add(v.id);
+      }
+      if (fresh.size) { pill.innerHTML = CI.svg('plus', 16) + (fresh.size === 1 ? '1 new post' : fresh.size + ' new posts'); pill.style.display = state.screen === 'home' ? 'flex' : 'none'; }
+    });
+    pill.onclick = async () => { pill.style.display = 'none'; fresh.clear(); navigate('home'); await loadFeed(true); $('#feed').scrollTo({ top: 0 }); };
+    const nav2 = window.navigate; window.navigate = function (s) { nav2.apply(this, arguments); if (s !== 'home') pill.style.display = 'none'; else if (fresh.size) pill.style.display = 'flex'; };
+  }
 
   // ---------- Start ----------
   let first = true;
