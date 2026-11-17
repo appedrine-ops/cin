@@ -5,6 +5,7 @@
 
   const X = window.CINX; if (!X) return;
   const ic = (n, s) => CI.svg(n, s || 22);
+  const dec = s => { const e = document.createElement('textarea'); e.innerHTML = String(s == null ? '' : s); return e.value; };
   const hasKey = () => !/^YOUR_/.test(JAMENDO_CLIENT_ID);
   const fmt = t => { t = Math.round(+t || 0); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); };
   const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
@@ -182,7 +183,7 @@
     Object.keys(p).forEach(k => u.searchParams.set(k, p[k]));
     const r = await fetch(u), j = await r.json();
     if (j.headers && j.headers.status === 'failed') throw new Error(j.headers.error_message || 'failed');
-    return (j.results || []).filter(t => t.audio).map(t => ({ id: 'j' + t.id, name: t.name, artist: t.artist_name, dur: t.duration, img: t.image || t.album_image || '', url: t.audio, link: t.shareurl || '' }));
+    return (j.results || []).filter(t => t.audio).map(t => ({ id: 'j' + t.id, name: dec(t.name), artist: dec(t.artist_name), dur: t.duration, img: t.image || t.album_image || '', url: t.audio, link: t.shareurl || '' }));
   }
   function msg(text, retry) {
     const L = $('#sList'); L.innerHTML = '';

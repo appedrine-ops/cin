@@ -200,8 +200,30 @@ export const CIN = {
   // ---------- verification (only an admin can give or remove the blue tick) ----------
   async isAdmin() { try { const s = await getDoc(doc(db, "admins", me())); return s.exists(); } catch (e) { return false; } },
   // tiers: "" (none) | "blue" (confirmed member) | "red" (leaders, politicians, businesses) | "green" (heads of state, royalty)
-  setTier: (uid, tier) => updateDoc(doc(db, "users", uid), { tier: tier || "", verified: !!tier }),
+  // every tick given or removed is written to an admin-only log that nobody can edit or delete
+  async setTier(uid, tier, meta = {}) {
+    const adm = await CIN.getProfile(me()), b = writeBatch(db);
+    b.update(doc(db, "users", uid), { tier: tier || "", verified: !!tier });
+    b.set(doc(collection(db, "verifyLog")), { uid, handle: meta.handle || "", action: tier ? "give" : "remove", tier: tier || "", note: String(meta.note || "").slice(0, 200), by: me(), byHandle: adm.handle, at: serverTimestamp() });
+    await b.commit();
+  },
+  async listLog() { const s = await getDocs(query(collection(db, "verifyLog"), orderBy("at", "desc"), limit(40))); return s.docs.map(d => d.data()); },
 
+  // ---- applications: a member asks, only an admin decides ----
+  async applyVerify({ wanted, reason, link }) {
+    const uid = me(), p = await CIN.getProfile(uid);
+    await setDoc(doc(db, "verifyRequests", uid), { uid, handle: p.handle, name: p.name, wanted: ["blue", "red", "green"].includes(wanted) ? wanted : "blue", reason: String(reason).slice(0, 300), link: String(link || "").slice(0, 200), status: "pending", createdAt: serverTimestamp() });
+  },
+  async myRequest() { const s = await getDoc(doc(db, "verifyRequests", me())); return s.exists() ? s.data() : null; },
+  async pendingRequests() { const s = await getDocs(query(collection(db, "verifyRequests"), where("status", "==", "pending"), limit(50))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
+  // tier = "blue" | "red" | "green" to approve, or "" to reject
+  async decideRequest(uid, tier, meta = {}) {
+    const adm = await CIN.getProfile(me()), b = writeBatch(db);
+    if (tier) b.update(doc(db, "users", uid), { tier, verified: true });
+    b.set(doc(collection(db, "verifyLog")), { uid, handle: meta.handle || "", action: tier ? "approve" : "reject", tier: tier || "", note: String(meta.note || "").slice(0, 200), by: me(), byHandle: adm.handle, at: serverTimestamp() });
+    b.update(doc(db, "verifyRequests", uid), { status: tier ? "approved" : "rejected" });
+    await b.commit();
+  },
   async listVerified() { const s = await getDocs(query(collection(db, "users"), where("verified", "==", true), limit(50))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
   async searchUsers(prefix) {
     const p = clean(prefix);

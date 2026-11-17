@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=13";
+import { CIN } from "./cin-backend.js?v=15";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -88,8 +88,9 @@ if (CIN.configured) {
   // ---------- Account state ----------
   // ---------- verification badges ----------
   const vCache = new Map();
+  const decEnt = t => { const e = document.createElement('textarea'); e.innerHTML = String(t); return e.value; };
   const vcss = document.createElement('style');
-  vcss.textContent = '.vbadge{display:inline-flex;vertical-align:-3px;margin-left:5px}.vbadge svg{display:block}.admbtn{width:100%;margin-top:10px;padding:14px;border-radius:16px;background:#14161d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.adm{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.adm.show{display:flex}.adm-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.adm-top b{flex:1;font-size:17px}.adm-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.adm input{margin:4px 16px 10px;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:14px;color:#fff;font-size:16px;outline:0}.adm-list{flex:1;overflow:auto;padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}.adm-row{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:14px;padding:11px}.adm-row .t{flex:1;min-width:0}.adm-row .t b{display:flex;align-items:center;font-size:15px}.adm-row .t>span{display:block;color:#9aa0b0;font-size:13px}.adm-row button{padding:9px 14px;border-radius:18px;font-weight:800;font-size:13px;background:#1d9bf0;color:#fff}.adm-row button.rm{background:#2a2d3a;color:#ff7a90}.adm-h{color:#9aa0b0;font-size:13px;padding:6px 16px}';
+  vcss.textContent = '.vbadge{display:inline-flex;vertical-align:-3px;margin-left:5px}.vbadge svg{display:block}.admbtn{width:100%;margin-top:10px;padding:14px;border-radius:16px;background:#14161d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.adm{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.adm.show{display:flex}.adm-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.adm-top b{flex:1;font-size:17px}.adm-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.adm input{margin:4px 16px 10px;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:14px;color:#fff;font-size:16px;outline:0}.adm-list{flex:1;overflow:auto;padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}.adm-row{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:14px;padding:11px}.adm-row .t{flex:1;min-width:0}.adm-row .t b{display:flex;align-items:center;font-size:15px}.adm-row .t>span{display:block;color:#9aa0b0;font-size:13px}.adm-row button{padding:9px 14px;border-radius:18px;font-weight:800;font-size:13px;background:#1d9bf0;color:#fff}.adm-row button.rm{background:#2a2d3a;color:#ff7a90}.adm-tabs{display:flex;gap:8px;padding:0 16px 10px}.adm-tabs button{flex:1;padding:11px;border-radius:14px;background:#14161d;color:#9aa0b0;font-weight:800}.adm-tabs button.on{background:#b8ff4a;color:#10140b}.adm-h{color:#9aa0b0;font-size:13px;padding:6px 16px}';
   document.head.append(vcss);
   const tierOf = p => (p && (p.tier || (p.verified ? 'blue' : ''))) || '';
   const TIER_NAME = { blue: 'Blue: verified member', red: 'Red: leaders, politicians and businesses', green: 'Green: heads of state and royalty' };
@@ -97,6 +98,7 @@ if (CIN.configured) {
   function paintBadges() {
     $$('.clip[data-cloud]').forEach(c => { const cr = c.querySelector('.creator'); const t = vCache.get(c.dataset.uid); if (cr && t && !cr.querySelector('.vbadge')) cr.append(badgeEl(t)); });
   }
+  function repaintBadges() { $$('.clip[data-cloud] .creator .vbadge').forEach(b => b.remove()); paintBadges(); }
   async function loadBadges() {
     const need = [...new Set(Array.from($$('.clip[data-cloud]')).map(c => c.dataset.uid))].filter(u => u && !vCache.has(u));
     await Promise.all(need.map(u => CIN.getProfile(u).then(p => vCache.set(u, tierOf(p))).catch(() => vCache.set(u, ''))));
@@ -107,11 +109,74 @@ if (CIN.configured) {
   function paintMyBadge() {
     const n = $('#profileName'); if (!n) return; const old = n.querySelector('.vbadge'); if (old) old.remove();
     if (state.tier) n.append(badgeEl(state.tier));
+    paintApply();
   }
+  // ---- member: apply for a tick ----
+  const ap = document.createElement('div'); ap.className = 'adm'; ap.id = 'vap';
+  ap.innerHTML = '<div class="adm-top"><button type="button" id="apBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Apply for verification</b></div><div class="adm-list" id="apBody"></div>';
+  $('.app').append(ap);
+  async function openApply() {
+    ap.classList.add('show'); const body = $('#apBody'); body.innerHTML = '<div class="adm-h">Loading...</div>';
+    if (state.tier) {
+      const nm = { blue: 'Blue tick: verified member', red: 'Red tick: leader, politician or business', green: 'Green tick: head of state or royalty' }[state.tier];
+      body.innerHTML = '<div class="adm-row" style="flex-direction:column;align-items:flex-start;gap:8px"><span style="display:flex;align-items:center;gap:8px;font-weight:800">' + CI.verified(26, state.tier) + ' You are verified</span><span style="color:#9aa0b0;font-size:14px">' + nm + '.</span><span style="color:#9aa0b0;font-size:13px">To protect your tick, a verified account cannot change its name. If your details change, contact the CIN owner.</span></div>'; return;
+    }
+    let req = null; try { req = await CIN.myRequest(); } catch (e) {}
+    if (req && req.status === 'pending') { body.innerHTML = '<div class="adm-row" style="flex-direction:column;align-items:flex-start;gap:6px"><b>Application sent</b><span style="color:#9aa0b0;font-size:14px">The CIN owner reviews every application. You will see your tick here once it is approved.</span></div>'; return; }
+    let want = 'blue';
+    body.innerHTML = (req && req.status === 'rejected' ? '<div class="adm-h" style="color:#ff7a90">Your last application was not approved. You can apply again.</div>' : '') +
+      '<div class="adm-h">Which tick are you applying for?</div><div id="apWant" style="display:flex;flex-direction:column;gap:8px"></div>' +
+      '<div class="adm-h">Why should you be verified?</div><textarea id="apWhy" maxlength="300" rows="4" class="pm-cap-in" placeholder="Tell us who you are and what you do"></textarea>' +
+      '<div class="adm-h">A link that proves it (optional)</div><input id="apLink" maxlength="200" placeholder="Official website or social page" style="margin:0" class="pm-cap-in"><button type="button" class="primary" id="apSend" style="margin-top:12px;width:100%">Send application</button>';
+    const box = $('#apWant');
+    [['blue', 'Blue', 'Verified member'], ['red', 'Red', 'Leader, politician or business'], ['green', 'Green', 'Head of state or royalty']].forEach(([t, n, d]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'adm-row'; b.style.cssText = 'width:100%;text-align:left;color:#fff;border:2px solid ' + (t === want ? '#b8ff4a' : 'transparent');
+      b.innerHTML = CI.verified(26, t) + '<span class="t"><b>' + n + '</b><span>' + d + '</span></span>';
+      b.onclick = () => { want = t; $$('#apWant button').forEach(x => x.style.borderColor = 'transparent'); b.style.borderColor = '#b8ff4a'; };
+      box.append(b);
+    });
+    $('#apSend').onclick = async () => {
+      const why = $('#apWhy').value.trim(); if (why.length < 10) { toast('Please tell us a little more about you'); return; }
+      const lk = $('#apLink').value.trim();
+      try { await CIN.applyVerify({ wanted: want, reason: why, link: lk }); toast('Application sent'); openApply(); }
+      catch (e) { toast(/permission/i.test(String((e && (e.code || e.message)) || '')) ? 'Firebase blocked this. Publish the new Firestore rules.' : 'Could not send. Try again.'); }
+    };
+  }
+  $('#apBack').onclick = () => ap.classList.remove('show');
+  // the verification entry lives in the menu (not on the profile)
+  const vrow = ['verify', 'Verification', ''];
+  { MENU[0][1].push(vrow);
+    const ma0 = window.menuAction;
+    window.menuAction = function (k) { if (k === 'verify') { closeDrawer(); if (!state.account) { gate(null); return; } if (state.admin) { $('#admQ').value = ''; adm.classList.add('show'); admTab('req'); } else openApply(); return; } return ma0.apply(this, arguments); }; }
+  function paintApply() { vrow[2] = !state.account ? 'Apply' : state.admin ? 'Admin' : state.tier ? 'Verified' : 'Apply'; }
   // admin panel: search a member and give or remove the blue tick
   const adm = document.createElement('div'); adm.className = 'adm'; adm.id = 'adm';
-  adm.innerHTML = '<div class="adm-top"><button type="button" id="admBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Verification</b></div><input id="admQ" placeholder="Search a username" autocomplete="off"><div class="adm-list" id="admList"></div>';
+  adm.innerHTML = '<div class="adm-top"><button type="button" id="admBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Verification</b></div><div class="adm-tabs"><button type="button" id="admTReq" class="on">Applications</button><button type="button" id="admTMem">Members</button><button type="button" id="admTLog">Log</button></div><input id="admQ" placeholder="Search a username" autocomplete="off" style="display:none"><div class="adm-list" id="admList"></div>';
   $('.app').append(adm);
+  // safety check before a tick is given or removed; the answer is saved in the log
+  function askAdmin(u, t, label) {
+    const who = '@' + u.handle;
+    if (t === 'red' || t === 'green') {
+      if (!confirm('Give the ' + label.toUpperCase() + ' tick to ' + who + '?\n\nOnly do this after you have checked who they really are (official website, ID or a call). A wrong tick lets an impostor fool people.')) return null;
+      const n = prompt('Short note for the log: how did you check ' + who + '?', ''); if (n === null) return null; return { handle: u.handle, note: n };
+    }
+    if (!t) { if (!confirm('Remove the tick from / reject ' + who + '?')) return null; const n = prompt('Reason (saved in the log):', ''); if (n === null) return null; return { handle: u.handle, note: n }; }
+    if (!confirm('Give the BLUE tick to ' + who + '?')) return null; return { handle: u.handle, note: '' };
+  }
+  async function admLog() {
+    const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
+    try {
+      const items = await CIN.listLog(); list.innerHTML = items.length ? '<div class="adm-h">Last actions. This log cannot be edited.</div>' : '<div class="adm-h">Nothing yet.</div>';
+      const AC = { give: 'gave', approve: 'approved', remove: 'removed the tick from', reject: 'rejected' };
+      items.forEach(e => {
+        const r = document.createElement('div'); r.className = 'adm-row'; r.style.cssText = 'flex-direction:column;align-items:flex-start;gap:3px';
+        const d = e.at && e.at.seconds ? new Date(e.at.seconds * 1000).toLocaleString() : 'just now';
+        const a = document.createElement('div'); a.style.cssText = 'font-size:14px'; a.textContent = '@' + e.byHandle + ' ' + (AC[e.action] || e.action) + ' @' + e.handle + (e.tier ? ' (' + e.tier + ')' : '');
+        const m = document.createElement('div'); m.style.cssText = 'color:#9aa0b0;font-size:12px'; m.textContent = d + (e.note ? ' · ' + e.note : '');
+        r.append(a, m); list.append(r);
+      });
+    } catch (e) { list.innerHTML = '<div class="adm-h">Could not load the log.</div>'; }
+  }
   function admRow(u) {
     const cur = tierOf(u), r = document.createElement('div'); r.className = 'adm-row'; r.style.flexWrap = 'wrap';
     r.innerHTML = '<span class="lv-av" style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#2fb58a);color:#10140b;display:grid;place-items:center;font-weight:900;flex:none"></span><span class="t"><b></b><span></span></span><div class="adm-tiers" style="width:100%;display:flex;gap:6px"></div>';
@@ -123,8 +188,9 @@ if (CIN.configured) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
       b.style.cssText = 'flex:1;padding:9px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + (cur === t ? col : '#1d2029') + ';border:2px solid ' + col;
       b.onclick = async () => {
-        if (cur === t) return; b.disabled = true;
-        try { await CIN.setTier(u.id, t); u.tier = t; u.verified = !!t; vCache.set(u.id, t); r.replaceWith(admRow(u)); toast(t ? '@' + u.handle + ' now has the ' + label.toLowerCase() + ' tick' : 'Tick removed'); }
+        if (cur === t) return;
+        const meta = askAdmin(u, t, label); if (!meta) return; b.disabled = true;
+        try { await CIN.setTier(u.id, t, meta); u.tier = t; u.verified = !!t; vCache.set(u.id, t); if (u.id === state.uid) { state.tier = t; paintMyBadge(); } repaintBadges(); r.replaceWith(admRow(u)); toast(t ? '@' + u.handle + ' now has the ' + label.toLowerCase() + ' tick' : 'Tick removed'); }
         catch (e) { b.disabled = false; toast('Firebase blocked this. Publish the new Firestore rules and add yourself as admin.'); }
       };
       box.append(b);
@@ -140,16 +206,42 @@ if (CIN.configured) {
       items.forEach(u => list.append(admRow(u)));
     } catch (e) { list.innerHTML = '<div class="adm-h">Could not load members.</div>'; }
   }
+  const WANT = { blue: 'Blue (member)', red: 'Red (leader or business)', green: 'Green (head of state or royalty)' };
+  async function admRequests() {
+    const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
+    try {
+      const items = await CIN.pendingRequests();
+      $('#admTReq').textContent = 'Applications' + (items.length ? ' (' + items.length + ')' : '');
+      list.innerHTML = items.length ? '' : '<div class="adm-h">No applications waiting.</div>';
+      items.forEach(q => {
+        const r = document.createElement('div'); r.className = 'adm-row'; r.style.cssText = 'flex-direction:column;align-items:stretch;gap:8px';
+        const h = document.createElement('div'); h.style.cssText = 'font-weight:800;display:flex;align-items:center;gap:6px'; h.textContent = '@' + q.handle + (q.name ? ' · ' + q.name : '');
+        const w = document.createElement('div'); w.style.cssText = 'color:#b8ff4a;font-size:13px;font-weight:700'; w.textContent = 'Asks for: ' + (WANT[q.wanted] || q.wanted);
+        const why = document.createElement('div'); why.style.cssText = 'color:#dfe1e8;font-size:14px;white-space:pre-wrap;word-break:break-word'; why.textContent = q.reason || '';
+        r.append(h, w, why);
+        if (q.link) { const l = document.createElement('div'); l.style.cssText = 'color:#8ab4ff;font-size:13px;word-break:break-all'; l.textContent = 'Proof: ' + q.link; r.append(l); }
+        const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px';
+        [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['', 'Reject', '#3a3f4d']].forEach(([t, label, col]) => {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'flex:1;padding:10px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + col;
+          b.onclick = async () => {
+            const meta = askAdmin(q, t, label); if (!meta) return; b.disabled = true;
+            try { await CIN.decideRequest(q.id, t, meta); vCache.set(q.id, t); repaintBadges(); toast(t ? '@' + q.handle + ' approved' : 'Application rejected'); admRequests(); }
+            catch (e) { b.disabled = false; toast('Firebase blocked this. Publish the new Firestore rules.'); }
+          };
+          row.append(b);
+        });
+        r.append(row); list.append(r);
+      });
+    } catch (e) { list.innerHTML = '<div class="adm-h">Could not load applications.</div>'; }
+  }
+  function admTab(t) { $('#admTReq').classList.toggle('on', t === 'req'); $('#admTMem').classList.toggle('on', t === 'mem'); $('#admTLog').classList.toggle('on', t === 'log'); $('#admQ').style.display = t === 'mem' ? '' : 'none'; if (t === 'req') admRequests(); else if (t === 'mem') admLoad(''); else admLog(); }
+  $('#admTLog').onclick = () => admTab('log');
+  $('#admTReq').onclick = () => admTab('req'); $('#admTMem').onclick = () => admTab('mem');
   let admT = null;
   $('#admQ').oninput = () => { clearTimeout(admT); admT = setTimeout(() => admLoad($('#admQ').value.trim().toLowerCase().replace(/^@/, '')), 300); };
   $('#admBack').onclick = () => adm.classList.remove('show');
   function paintAdmin() {
-    let b = $('#admBtn');
-    if (!state.admin) { if (b) b.remove(); return; }
-    if (b) return;
-    b = document.createElement('button'); b.type = 'button'; b.id = 'admBtn'; b.className = 'admbtn'; b.innerHTML = CI.verified(18, 'red') + ' Verification (admin)';
-    b.onclick = () => { $('#admQ').value = ''; adm.classList.add('show'); admLoad(''); };
-    $('#editProfile').after(b);
+    if (state.admin) CIN.pendingRequests().then(l => { vrow[2] = l.length ? 'Admin · ' + l.length + ' waiting' : 'Admin'; }).catch(() => {});
   }
   async function loadAccount(user) {
     let p = null;
@@ -159,7 +251,7 @@ if (CIN.configured) {
     localStorage.setItem('cin_account', '1'); localStorage.setItem('cin_name', p.name); localStorage.setItem('cin_handle', p.handle);
     if (Array.isArray(p.interests) && p.interests.length) { try { localStorage.setItem('cin_interests', JSON.stringify(p.interests)); } catch (e) {} }
     state.tier = tierOf(p); vCache.set(user.uid, state.tier); paintMyBadge();
-    CIN.isAdmin().then(a => { state.admin = a; paintAdmin(); });
+    CIN.isAdmin().then(a => { state.admin = a; paintAdmin(); paintApply(); });
     updateProfile(); paintAccount(); setTimeout(() => window.CINrefreshMine && window.CINrefreshMine(), 0);
     if (p.photoURL && window.CINX) CINX.paintAvatar(p.photoURL);
     $('#postCount').textContent = state.posts;
@@ -200,7 +292,7 @@ if (CIN.configured) {
     if (v.videoVol != null && !photo) clip.querySelector('video').volume = v.videoVol;
     if (photo && (v.musicURL || (v.music && v.music !== 'off'))) {
       const au = v.musicURL ? new Audio(v.musicURL) : null, snd = clip.querySelector('.sound'), me = 'ph' + v.id;
-      if (au) { au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; snd.textContent = (v.musicName || 'Music') + (v.musicLink ? ' · Jamendo' : ''); }
+      if (au) { au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; snd.textContent = decEnt(v.musicName || 'Music') + (v.musicLink ? ' · Jamendo' : ''); }
       if (v.musicLink && /^https:\/\/(www\.)?jamendo\.com\//.test(v.musicLink)) { snd.style.cursor = 'pointer'; snd.onclick = () => window.open(v.musicLink, '_blank', 'noopener,noreferrer'); }
       let playing = false;
       const on = force => { if (!force && !state.settings.autoplay) return; playing = true; window.__phNow = me; if (au) { au.muted = state.muted; try { au.currentTime = 0; } catch (e) {} au.play().catch(() => {}); } else if (!state.muted) Music.start(v.music, me); };
@@ -212,7 +304,7 @@ if (CIN.configured) {
       const vd = clip.querySelector('video'), au = new Audio(v.musicURL);
       au.loop = true; au.volume = v.musicVol == null ? .7 : v.musicVol; au.muted = vd.muted;
       const snd = clip.querySelector('.sound');
-      snd.textContent = (v.musicName || 'Music') + (v.musicLink ? ' · Jamendo' : '');
+      snd.textContent = decEnt(v.musicName || 'Music') + (v.musicLink ? ' · Jamendo' : '');
       if (v.musicLink && /^https:\/\/(www\.)?jamendo\.com\//.test(v.musicLink)) { snd.style.cursor = 'pointer'; snd.onclick = () => window.open(v.musicLink, '_blank', 'noopener,noreferrer'); }
       vd.addEventListener('play', () => { try { au.currentTime = vd.currentTime; } catch (e) {} au.play().catch(() => {}); });
       vd.addEventListener('pause', () => au.pause());
@@ -394,7 +486,7 @@ if (CIN.configured) {
     if (!state.account) { $('#editModal').classList.remove('show'); gate(null); return; }
     const n = $('#nameInput').value.trim().slice(0, 30) || state.name;
     try { await CIN.updateProfile({ name: n }); state.name = n; localStorage.setItem('cin_name', n); updateProfile(); $('#editModal').classList.remove('show'); toast('Profile saved'); }
-    catch (e) { toast('Could not save profile'); }
+    catch (e) { toast(state.tier ? 'Verified accounts cannot change their name. Ask the CIN owner.' : 'Could not save profile'); }
   };
   const origSettingAction = window.settingAction;
   window.settingAction = function (k) {

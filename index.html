@@ -8,7 +8,7 @@
 <!-- Security: blocks outside scripts, trackers and network calls. When you add Firebase, allow its hosts in script-src and connect-src. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://*.jamendo.com; media-src 'self' blob: https://res.cloudinary.com https://*.jamendo.com; font-src 'self' data:; connect-src 'self' https://api.cloudinary.com https://api.jamendo.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <link rel="icon" href="logo.png">
-<script src="cin-config.js?v=13"></script><script src="cin-icons.js?v=13"></script>
+<script src="cin-config.js?v=15"></script><script src="cin-icons.js?v=15"></script>
 <title>CIN — Create. Inspire. Network.</title>
 <style>
 :root{--bg:#08090d;--panel:#11131a;--panel2:#191c25;--text:#f7f7fb;--muted:#9da2b1;--accent:#b8ff4a;--pink:#ff4f91;--line:#292d39}
@@ -218,7 +218,7 @@ add('Copy link','link','#18c8c0',()=>{const t=d.url||d.text,ok=()=>toast('Link c
 $('#shareNote').textContent=!d.url?'Put CIN online, for example on GitHub Pages, so shared links open the app.':(id&&id.startsWith('local-')?'This video is only on your device until cloud publishing is on. The link opens CIN.':'');
 $('#shareReport').style.display=id?'block':'none';$('#shareModal').classList.add('show');}
 $('#shareReport').onclick=()=>{$('#shareModal').classList.remove('show');const id=shareId;showInfo('Report this video',['Why are you reporting it?'],['Spam','Harassment or bullying','Nudity or sexual content','Violence or dangerous acts','Something else'].map(r=>[r,()=>{const a=jget('cin_reports','[]');a.push({id,r,t:Date.now()});save('cin_reports',a.slice(-50));$('#infoModal').classList.remove('show');toast('Thanks. We will review this video.');}]));};
-const MENU=[['Assets',[['wallet','Balance','UGX 0']]],['Personal tools',[['activity','Activity center'],['shareapp','Share CIN']]],['Creation tools',[['studio','CIN Studio']]],['',[['settings','Settings and privacy']]]];
+const MENU=[['Personal tools',[['activity','Activity center'],['shareapp','Share CIN']]],['Creation tools',[['studio','CIN Studio']]],['',[['settings','Settings and privacy']]]];
 function closeDrawer(){$('#drawer').classList.remove('show');}
 function openDrawer(){const box=$('#drawerBody');box.innerHTML='';MENU.forEach(([g,items])=>{if(g){const h=document.createElement('h3');h.textContent=g;box.append(h);}items.forEach(([k,title,val])=>{const b=document.createElement('button');b.className='drow';const l=document.createElement('span');l.textContent=title;b.append(l);if(val){const v=document.createElement('small');v.textContent=val;b.append(v);}const i=document.createElement('i');i.textContent='›';b.append(i);b.onclick=()=>menuAction(k);box.append(b);});});$('#drawer').classList.add('show');}
 function menuAction(k){closeDrawer();if(k==='wallet')showInfo('Wallet',['Balance: UGX 0','Mobile Money tips and payouts (MTN and Airtel) will be available once the CIN backend is connected.']);else if(k==='activity')navigate('inbox');else if(k==='shareapp')openShare(null);else if(k==='settings'){renderSettings();navigate('settings');}else if(k==='studio'){const likes=state.liked.length,comments=Object.values(state.comments).reduce((a,b)=>a+b.length,0),score=likes+comments*2+state.posts*5;let lv=LEVELS[0][0];LEVELS.forEach(l=>{if(score>=l[1])lv=l[0];});showInfo('CIN Studio',['Videos posted: '+state.posts,'Likes given: '+likes,'Comments written: '+comments,'Pulse score: '+score+' ('+lv+')','Real views, followers and earnings will appear here once videos are published to the cloud.'],[['Create a video',()=>{$('#infoModal').classList.remove('show');navigate('upload');}]]);}}
@@ -226,7 +226,7 @@ $('#drawerBg').onclick=closeDrawer;$('#drawerClose').onclick=closeDrawer;
 updateProfile();syncLikes();renderHub();paintAccount();paintMusic();{const h=decodeURIComponent(location.hash.slice(1)),t=h&&$('.clip[data-id="'+CSS.escape(h)+'"]');if(t)setTimeout(()=>t.scrollIntoView(),150);}$('#followingCount').textContent=state.following.length;$$('.clip').forEach(c=>{setupVideo(c);addFollow(c);setupInfo(c);});renderPeople();
 </script>
 <script>setTimeout(function(){var s=document.getElementById("splash");if(s){s.classList.add("hide");setTimeout(function(){s.remove()},400)}},1200)</script>
-<script src="cin-extras.js?v=13"></script>
-<script src="cin-editor.js?v=13"></script>
-<script type="module" src="cin-cloud.js?v=13"></script><script type="module" src="cin-live.js?v=13"></script>
+<script src="cin-extras.js?v=15"></script>
+<script src="cin-editor.js?v=15"></script>
+<script type="module" src="cin-cloud.js?v=15"></script><script type="module" src="cin-live.js?v=15"></script>
 </body></html>
