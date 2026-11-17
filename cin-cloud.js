@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=18";
+import { CIN } from "./cin-backend.js?v=20";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -125,16 +125,17 @@ if (CIN.configured) {
     if (req && req.status === 'pending') { body.innerHTML = '<div class="adm-row" style="flex-direction:column;align-items:flex-start;gap:6px"><b>Application sent</b><span style="color:#9aa0b0;font-size:14px">The CIN owner reviews every application. You will see your tick here once it is approved.</span></div>'; return; }
     let want = 'blue';
     body.innerHTML = (req && req.status === 'rejected' ? '<div class="adm-h" style="color:#ff7a90">Your last application was not approved. You can apply again.</div>' : '') +
-      '<div class="adm-h">Which tick are you applying for?</div><div id="apWant" style="display:flex;flex-direction:column;gap:8px"></div>' +
-      '<div class="adm-h">Why should you be verified?</div><textarea id="apWhy" maxlength="300" rows="4" class="pm-cap-in" placeholder="Tell us who you are and what you do"></textarea>' +
+      '<div class="adm-h" style="color:#fff;font-size:15px">Ask the CIN owner for a verified tick. Fill in two short boxes and send. If approved, you get a <b style="color:#1d9bf0">blue tick</b>.</div><div id="apWant" style="display:flex;flex-direction:column;gap:8px"></div><button type="button" id="apMore" style="background:none;color:#8ab4ff;font-weight:700;font-size:14px;padding:8px 0;text-align:left">I am a leader, business or community. Show other ticks</button>' +
+      '<div class="adm-h">Who are you? (one or two sentences)</div><textarea id="apWhy" maxlength="300" rows="4" class="pm-cap-in" placeholder="Example: I am a student and a creator in Kampala. I post tech tips."></textarea>' +
       '<div class="adm-h">A link that proves it (optional)</div><input id="apLink" maxlength="200" placeholder="Official website or social page" style="margin:0" class="pm-cap-in"><button type="button" class="primary" id="apSend" style="margin-top:12px;width:100%">Send application</button>';
-    const box = $('#apWant');
+    const box = $('#apWant'); let more = null;
     [['blue', 'Blue', 'Verified member'], ['red', 'Red', 'Leader, politician or business'], ['green', 'Green', 'Head of state or royalty'], ['purple', 'Purple', 'Community, group, school or organisation']].forEach(([t, n, d]) => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'adm-row'; b.style.cssText = 'width:100%;text-align:left;color:#fff;border:2px solid ' + (t === want ? '#b8ff4a' : 'transparent');
       b.innerHTML = CI.verified(26, t) + '<span class="t"><b>' + n + '</b><span>' + d + '</span></span>';
       b.onclick = () => { want = t; $$('#apWant button').forEach(x => x.style.borderColor = 'transparent'); b.style.borderColor = '#b8ff4a'; };
-      box.append(b);
+      box.append(b); if (t !== 'blue') { b.style.display = 'none'; b.dataset.more = '1'; }
     });
+    $('#apMore').onclick = () => { $$('#apWant [data-more]').forEach(x => x.style.display = ''); $('#apMore').remove(); };
     $('#apSend').onclick = async () => {
       const why = $('#apWhy').value.trim(); if (why.length < 10) { toast('Please tell us a little more about you'); return; }
       const lk = $('#apLink').value.trim();
@@ -222,15 +223,17 @@ if (CIN.configured) {
         r.append(h, w, why);
         if (q.link) { const l = document.createElement('div'); l.style.cssText = 'color:#8ab4ff;font-size:13px;word-break:break-all'; l.textContent = 'Proof: ' + q.link; r.append(l); }
         const row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
-        [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['purple', 'Purple', '#8b5cf6'], ['gold', 'Gold', '#f5b301'], ['', 'Reject', '#3a3f4d']].forEach(([t, label, col]) => {
-          const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'flex:1 1 30%;padding:10px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + col;
+        const COL = { blue: '#1d9bf0', red: '#ff3b30', green: '#1fb455', purple: '#8b5cf6', gold: '#f5b301', '': '#3a3f4d' }, NAME = { blue: 'Blue', red: 'Red', green: 'Green', purple: 'Purple', gold: 'Gold', '': 'Reject' };
+        const act = (t, big) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t ? (big ? 'Approve: give ' + NAME[t] + ' tick' : NAME[t]) : 'Reject'; b.style.cssText = (big ? 'flex:1 1 100%;padding:14px 0;font-size:15px;' : 'flex:1 1 30%;padding:10px 0;font-size:13px;') + 'border-radius:18px;font-weight:800;color:#fff;background:' + COL[t];
           b.onclick = async () => {
-            const meta = askAdmin(q, t, label); if (!meta) return; b.disabled = true;
+            const meta = askAdmin(q, t, NAME[t]); if (!meta) return; b.disabled = true;
             try { await CIN.decideRequest(q.id, t, meta); vCache.set(q.id, t); repaintBadges(); toast(t ? '@' + q.handle + ' approved' : 'Application rejected'); admRequests(); }
             catch (e) { b.disabled = false; toast('Firebase blocked this. Publish the new Firestore rules.'); }
-          };
-          row.append(b);
-        });
+          }; return b; };
+        const wanted = ['blue', 'red', 'green', 'purple'].includes(q.wanted) ? q.wanted : 'blue';
+        row.append(act(wanted, true), act('', false));
+        const oh = document.createElement('div'); oh.style.cssText = 'flex:1 1 100%;color:#9aa0b0;font-size:12px;margin-top:4px'; oh.textContent = 'Or give a different tick:'; row.append(oh);
+        ['blue', 'red', 'green', 'purple', 'gold'].filter(t => t !== wanted).forEach(t => row.append(act(t, false)));
         r.append(row); list.append(r);
       });
     } catch (e) { list.innerHTML = '<div class="adm-h">Could not load applications.</div>'; }
