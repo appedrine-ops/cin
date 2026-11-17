@@ -197,6 +197,7 @@ export const CIN = {
   },
 
   // ---------- Follows ----------
+  async findByHandle(handle) { const h = await getDoc(doc(db, "handles", String(handle).toLowerCase())); return h.exists() ? CIN.getProfile(h.data().uid) : null; },
   async getFollowingIds(uid = me()) { return (await getDocs(collection(db, "users", uid, "following"))).docs.map(d => d.id); },
   async toggleFollow(targetUid) {
     const uid = me(), fref = doc(db, "users", uid, "following", targetUid), rref = doc(db, "users", targetUid, "followers", uid);

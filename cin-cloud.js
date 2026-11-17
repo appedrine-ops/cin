@@ -203,7 +203,8 @@ if (CIN.configured) {
       const items = q ? await CIN.searchUsers(q) : await CIN.listVerified();
       list.innerHTML = '<div class="adm-h">' + (q ? 'Results' : 'Verified members') + '</div>';
       if (!items.length) list.innerHTML += '<div class="adm-h">' + (q ? 'No member found.' : 'Nobody is verified yet. Search a username above.') + '</div>';
-      items.forEach(u => list.append(admRow(u)));
+      if (!q) { try { const me0 = await CIN.getProfile(state.uid); if (me0) { const h0 = document.createElement('div'); h0.className = 'adm-h'; h0.textContent = 'Your own account. Give yourself a tick here.'; list.prepend(h0); h0.after(admRow(me0)); } } catch (e) {} }
+      items.filter(u => u.id !== state.uid).forEach(u => list.append(admRow(u)));
     } catch (e) { list.innerHTML = '<div class="adm-h">Could not load members.</div>'; }
   }
   const WANT = { blue: 'Blue (member)', red: 'Red (leader or business)', green: 'Green (head of state or royalty)' };
@@ -850,13 +851,106 @@ if (CIN.configured) {
     }
   };
 
+  // ---------- Activity center (history kept on this phone only) ----------
+  const J = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || d); } catch (e) { return JSON.parse(d); } };
+  const S = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const ago = t => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? 'Just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.floor(m / 60) + ' h ago' : Math.floor(m / 1440) + ' d ago'; };
+  // record what you watch (the clip that stays on screen for a moment)
+  { let wt = null; const feed = $('#feed');
+    const rec = () => { const fr = feed.getBoundingClientRect(); let best = null, bd = 1e9; $$('#feed .clip[data-cloud]').forEach(c => { const d = Math.abs(c.getBoundingClientRect().top - fr.top); if (d < bd) { bd = d; best = c; } });
+      if (!best || bd > fr.height * .3 || !$('#home').classList.contains('active')) return; const id = best.dataset.id, w = J('cin_watch', '[]'); if (w[0] && w[0].id === id) return;
+      w.unshift({ id, h: (best.querySelector('.creator') || {}).firstChild ? best.querySelector('.creator').firstChild.textContent : '', c: ((best.querySelector('.caption') || {}).textContent || '').slice(0, 80), t: Date.now() }); S('cin_watch', w.filter((x, i, a) => a.findIndex(y => y.id === x.id) === i).slice(0, 60)); };
+    feed.addEventListener('scroll', () => { clearTimeout(wt); wt = setTimeout(rec, 1500); }, { passive: true }); setTimeout(rec, 4000); }
+  { const si = $('#searchInput'); if (si) { const rs = () => { const q = si.value.trim(); if (q.length < 2) return; const a = J('cin_searches', '[]').filter(x => x.q !== q); a.unshift({ q, t: Date.now() }); S('cin_searches', a.slice(0, 30)); };
+    si.addEventListener('keydown', e => { if (e.key === 'Enter') rs(); }); si.addEventListener('change', rs); } }
+  const acss = document.createElement('style');
+  acss.textContent = `.act{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.act.show{display:flex}.act-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.act-top b{flex:1;font-size:18px}.act-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}
+.act-body{flex:1;overflow:auto;padding:0 16px calc(24px + env(safe-area-inset-bottom))}.act-note{color:#9aa0b0;font-size:13px;line-height:1.5;margin:4px 0 14px}.act-card{background:#14161d;border-radius:16px;overflow:hidden;margin-bottom:12px}
+.act-row{display:flex;align-items:center;gap:14px;width:100%;padding:15px 14px;background:none;color:#fff;text-align:left;border-bottom:1px solid #20232d}.act-row:last-child{border-bottom:0}.act-row .ai{width:38px;height:38px;border-radius:12px;background:#222633;display:grid;place-items:center;color:#b8ff4a;flex:none}.act-row .tx{flex:1;min-width:0}.act-row .tx b{display:block;font-size:15px}.act-row .tx small{display:block;color:#9aa0b0;font-size:13px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.act-row i{font-style:normal;color:#6b7080}
+.act-empty{text-align:center;color:#9aa0b0;padding:40px 10px;font-size:14px}.act-clear{width:100%;padding:14px;border-radius:14px;background:#3a1620;color:#ff7a90;font-weight:800;margin-top:6px}`;
+  document.head.append(acss);
+  const act = document.createElement('div'); act.className = 'act'; act.id = 'act';
+  act.innerHTML = '<div class="act-top"><button type="button" id="actBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b id="actTitle">Activity center</b></div><div class="act-body" id="actBody"></div>';
+  $('.app').append(act);
+  let actPage = '';
+  const arow = (icon, title, sub, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'act-row'; b.innerHTML = '<span class="ai">' + CI.svg(icon, 20) + '</span><span class="tx"><b></b><small></small></span><i>&rsaquo;</i>'; b.querySelector('b').textContent = title; b.querySelector('small').textContent = sub || ''; if (fn) b.onclick = fn; else b.querySelector('i').remove(); return b; };
+  function actHome() {
+    actPage = ''; $('#actTitle').textContent = 'Activity center';
+    const body = $('#actBody'); body.innerHTML = '<p class="act-note">Your history on this phone. Only you can see it. It is not shared with anyone.</p>';
+    const card = document.createElement('div'); card.className = 'act-card';
+    const w = J('cin_watch', '[]').length, sr = J('cin_searches', '[]').length, lk = (state.liked || []).length, cm = Object.values(state.comments || {}).reduce((a, b) => a + b.length, 0);
+    card.append(arow('play', 'Watch history', w + (w === 1 ? ' video' : ' videos'), () => actList('watch')), arow('heart', 'Liked posts', lk + (lk === 1 ? ' post' : ' posts'), () => actList('likes')), arow('comment', 'Comment history', cm + (cm === 1 ? ' comment' : ' comments'), () => actList('comments')), arow('search', 'Search history', sr + (sr === 1 ? ' search' : ' searches'), () => actList('search')), arow('people', 'Account history', 'Sign-ins and verification', () => actList('account')));
+    body.append(card);
+  }
+  const goClip = id => { act.classList.remove('show'); navigate('home'); const c = clipEl(id); if (c) setTimeout(() => c.scrollIntoView(), 80); else toast('That post is no longer in your feed'); };
+  function actList(kind) {
+    actPage = kind; const body = $('#actBody'); body.innerHTML = ''; const card = document.createElement('div'); card.className = 'act-card';
+    const empty = t => { body.innerHTML = '<div class="act-empty">' + t + '</div>'; };
+    let key = null, items = [];
+    if (kind === 'watch') { $('#actTitle').textContent = 'Watch history'; key = 'cin_watch'; items = J('cin_watch', '[]'); if (!items.length) return empty('Videos you watch will show here.'); items.forEach(x => card.append(arow('play', '@' + (x.h || 'creator'), (x.c ? x.c + ' · ' : '') + ago(x.t), () => goClip(x.id)))); }
+    else if (kind === 'likes') { $('#actTitle').textContent = 'Liked posts'; const ids = (state.liked || []).filter(id => !SEED || SEED[id] === undefined); if (!ids.length) return empty('Posts you like will show here.'); ids.slice().reverse().forEach(id => { const c = clipEl(id); card.append(arow('heart', c ? ((c.querySelector('.creator') || {}).firstChild || {}).textContent || 'Post' : 'Post', c ? ((c.querySelector('.caption') || {}).textContent || '') : 'Tap to open', () => goClip(id))); }); }
+    else if (kind === 'comments') { $('#actTitle').textContent = 'Comment history'; let n = 0; Object.entries(state.comments || {}).forEach(([id, list]) => list.slice().reverse().forEach(t => { n++; const c = clipEl(id); card.append(arow('comment', t, c ? 'On ' + (((c.querySelector('.creator') || {}).firstChild || {}).textContent || 'a post') : 'On a post', () => goClip(id))); })); if (!n) return empty('Comments you write will show here.'); }
+    else if (kind === 'search') { $('#actTitle').textContent = 'Search history'; key = 'cin_searches'; items = J('cin_searches', '[]'); if (!items.length) return empty('What you search will show here.'); items.forEach(x => card.append(arow('search', x.q, ago(x.t), () => { act.classList.remove('show'); navigate('discover'); const si = $('#searchInput'); if (si) { si.value = x.q; si.dispatchEvent(new Event('input', { bubbles: true })); } }))); }
+    else { $('#actTitle').textContent = 'Account history'; key = 'cin_acct'; items = J('cin_acct', '[]'); if (state.account) card.append(arow('people', '@' + state.handle, state.tier ? 'Verified account (' + state.tier + ' tick)' : 'Not verified yet')); items.forEach(x => card.append(arow('check', x.m, ago(x.t)))); if (!card.children.length) return empty('Sign in to see your account history.'); }
+    body.append(card);
+    if (key) { const cl = document.createElement('button'); cl.type = 'button'; cl.className = 'act-clear'; cl.textContent = 'Clear this history'; cl.onclick = () => { if (!confirm('Clear this history from your phone?')) return; S(key, []); actList(kind); toast('History cleared'); }; body.append(cl); }
+  }
+  $('#actBack').onclick = () => { if (actPage) actHome(); else act.classList.remove('show'); };
+  function openActivity() { actHome(); act.classList.add('show'); }
+  function logAcct(m) { const a = J('cin_acct', '[]'); a.unshift({ m, t: Date.now() }); S('cin_acct', a.slice(0, 40)); }
+
+  // ---------- My QR code + profile links ----------
+  const qcss = document.createElement('style');
+  qcss.textContent = `.qrc{position:absolute;inset:0;z-index:38;background:linear-gradient(160deg,#1b1034,#0b2a3a);display:none;flex-direction:column;align-items:center;padding:14px 20px calc(18px + env(safe-area-inset-bottom));overflow:auto}.qrc.show{display:flex}.qrc .qx{align-self:flex-start;width:42px;height:42px;border-radius:50%;background:#ffffff22;color:#fff;display:grid;place-items:center;margin-bottom:6px}
+.qr-card{background:#fff;border-radius:26px;padding:22px 20px 18px;width:100%;max-width:340px;text-align:center;color:#10140b;margin-top:34px;position:relative}.qr-av{position:absolute;left:50%;top:-34px;transform:translateX(-50%);width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#2fb58a);border:4px solid #fff;display:grid;place-items:center;font-weight:900;font-size:28px}.qr-card h2{margin:30px 0 0;font-size:20px;display:flex;align-items:center;justify-content:center;gap:4px}.qr-card .h{color:#7a7f8c;margin-bottom:12px}.qr-card canvas{width:100%;height:auto;display:block}.qr-card .b{margin-top:8px;font-weight:900;letter-spacing:1px}
+.qr-btns{display:flex;gap:10px;width:100%;max-width:340px;margin-top:14px}.qr-btns button{flex:1;padding:14px 6px;border-radius:16px;background:#fff;color:#10140b;font-weight:800;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:6px}.qr-note{color:#cfd2dc;font-size:13px;text-align:center;max-width:320px;margin-top:12px}`;
+  document.head.append(qcss);
+  const qrc = document.createElement('div'); qrc.className = 'qrc'; qrc.id = 'qrc';
+  qrc.innerHTML = '<button type="button" class="qx" id="qrX" aria-label="Close">' + CI.svg('close', 22) + '</button><div class="qr-card"><div class="qr-av" id="qrAv"></div><h2 id="qrName"></h2><div class="h" id="qrHandle"></div><canvas id="qrCanvas" width="520" height="520"></canvas><div class="b">CIN</div></div>' +
+    '<div class="qr-btns"><button type="button" id="qrCopy">' + CI.svg('link', 22) + 'Copy link</button><button type="button" id="qrShare">' + CI.svg('share', 22) + 'Share profile</button><button type="button" id="qrSave">' + CI.svg('save', 22) + 'Save image</button></div><p class="qr-note">Anyone who scans this with their phone camera opens your CIN profile.</p>';
+  $('.app').append(qrc);
+  const profLink = h => (location.protocol.startsWith('http') ? location.origin + location.pathname : 'https://appedrine-ops.github.io/cin/') + '#u/' + h;
+  function drawQR() {
+    const url = profLink(state.handle), m = CINQR.make(url), n = m.length, c = $('#qrCanvas'), g = c.getContext('2d'), q = 2, cell = Math.floor(c.width / (n + 2 * q)), off = Math.floor((c.width - cell * n) / 2);
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#000'; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m[y][x]) g.fillRect(off + x * cell, off + y * cell, cell, cell);
+  }
+  function openQR() {
+    if (!state.account || !state.handle) { gate(null); return; }
+    $('#qrAv').textContent = ((state.name || state.handle)[0] || '?').toUpperCase(); $('#qrName').textContent = state.name || state.handle; if (state.tier) $('#qrName').append(badgeEl(state.tier)); $('#qrHandle').textContent = '@' + state.handle;
+    try { drawQR(); } catch (e) { toast('Could not make the QR code'); return; } qrc.classList.add('show');
+  }
+  $('#qrX').onclick = () => qrc.classList.remove('show');
+  $('#qrCopy').onclick = async () => { const t = profLink(state.handle); try { await navigator.clipboard.writeText(t); toast('Link copied'); } catch (e) { const a = document.createElement('textarea'); a.value = t; document.body.append(a); a.select(); try { document.execCommand('copy'); toast('Link copied'); } catch (x) { toast(t); } a.remove(); } };
+  $('#qrShare').onclick = () => { const d = { title: 'CIN', text: 'Follow me on CIN: @' + state.handle, url: profLink(state.handle) }; if (navigator.share) navigator.share(d).catch(() => {}); else $('#qrCopy').click(); };
+  $('#qrSave').onclick = () => { $('#qrCanvas').toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cin-qr-' + state.handle + '.png'; document.body.append(a); a.click(); a.remove(); toast('QR image saved'); }); };
+  // opening a profile link (someone scanned a QR code)
+  const pv = document.createElement('div'); pv.className = 'qrc'; pv.id = 'pvc';
+  pv.innerHTML = '<button type="button" class="qx" id="pvX" aria-label="Close">' + CI.svg('close', 22) + '</button><div class="qr-card"><div class="qr-av" id="pvAv"></div><h2 id="pvName"></h2><div class="h" id="pvHandle"></div><p id="pvBio" style="margin:0 0 12px;color:#333;font-size:14px"></p><p id="pvStat" style="margin:0 0 14px;color:#555;font-size:13px"></p><button type="button" id="pvFollow" class="primary" style="width:100%">Follow</button></div>';
+  $('.app').append(pv); $('#pvX').onclick = () => { pv.classList.remove('show'); history.replaceState(null, '', location.pathname); };
+  async function openProfileLink(handle) {
+    handle = String(handle).toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20); if (!handle) return;
+    try {
+      const p = await CIN.findByHandle(handle); if (!p) { toast('That profile was not found'); return; }
+      $('#pvAv').textContent = ((p.name || p.handle)[0] || '?').toUpperCase(); $('#pvName').textContent = p.name || p.handle; const t = p.tier || (p.verified ? 'blue' : ''); if (t) $('#pvName').append(badgeEl(t));
+      $('#pvHandle').textContent = '@' + p.handle; $('#pvBio').textContent = p.bio || ''; $('#pvStat').textContent = (p.followersCount || 0) + ' followers · ' + (p.postsCount || 0) + ' posts';
+      const fb = $('#pvFollow'); fb.style.display = p.id === state.uid ? 'none' : '';
+      let on = false; if (state.account && p.id !== state.uid) { try { on = (await CIN.getFollowingIds()).includes(p.id); } catch (e) {} }
+      const paint = () => { fb.textContent = on ? 'Following' : 'Follow'; fb.className = on ? 'secondary' : 'primary'; }; paint();
+      fb.onclick = async () => { if (!state.account) { pv.classList.remove('show'); gate(null); return; } fb.disabled = true; try { on = await CIN.toggleFollow(p.id); paint(); } catch (e) { toast('Could not follow. Try again.'); } fb.disabled = false; };
+      pv.classList.add('show');
+    } catch (e) { toast('Could not open that profile'); }
+  }
+  // menu rows: Activity center (real screen), My QR code
+  { const qrow = ['qr', 'My QR code', '']; MENU[0][1].push(qrow); const ma1 = window.menuAction;
+    window.menuAction = function (k) { if (k === 'activity') { closeDrawer(); openActivity(); return; } if (k === 'qr') { closeDrawer(); openQR(); return; } return ma1.apply(this, arguments); }; }
+
   // ---------- Start ----------
   let first = true;
   CIN.onUser(async user => {
     if (signingUp) return;
-    if (user) await loadAccount(user);
+    if (user) { await loadAccount(user); if (!sessionStorage.getItem('cin_sess')) { sessionStorage.setItem('cin_sess', '1'); logAcct('Signed in'); } const lt = localStorage.getItem('cin_lasttier_' + user.uid); if ((lt || '') !== (state.tier || '')) { if (lt !== null || state.tier) logAcct(state.tier ? 'Verified: ' + state.tier + ' tick' : 'Tick removed'); localStorage.setItem('cin_lasttier_' + user.uid, state.tier || ''); } }
     else { state.account = false; state.uid = null; localStorage.removeItem('cin_account'); paintAccount(); }
     await loadFeed(true);
-    if (first) { first = false; const h = decodeURIComponent(location.hash.slice(1)), t = h && clipEl(h); if (t) setTimeout(() => t.scrollIntoView(), 150); }
+    if (first) { first = false; const h = decodeURIComponent(location.hash.slice(1)); if (h.startsWith('u/')) openProfileLink(h.slice(2)); const t = h && !h.startsWith('u/') && clipEl(h); if (t) setTimeout(() => t.scrollIntoView(), 150); }
   });
 }
