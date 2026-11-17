@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=15";
+import { CIN } from "./cin-backend.js?v=17";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -90,7 +90,7 @@ if (CIN.configured) {
   const vCache = new Map();
   const decEnt = t => { const e = document.createElement('textarea'); e.innerHTML = String(t); return e.value; };
   const vcss = document.createElement('style');
-  vcss.textContent = '.vbadge{display:inline-flex;vertical-align:-3px;margin-left:5px}.vbadge svg{display:block}.admbtn{width:100%;margin-top:10px;padding:14px;border-radius:16px;background:#14161d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.adm{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.adm.show{display:flex}.adm-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.adm-top b{flex:1;font-size:17px}.adm-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.adm input{margin:4px 16px 10px;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:14px;color:#fff;font-size:16px;outline:0}.adm-list{flex:1;overflow:auto;padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}.adm-row{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:14px;padding:11px}.adm-row .t{flex:1;min-width:0}.adm-row .t b{display:flex;align-items:center;font-size:15px}.adm-row .t>span{display:block;color:#9aa0b0;font-size:13px}.adm-row button{padding:9px 14px;border-radius:18px;font-weight:800;font-size:13px;background:#1d9bf0;color:#fff}.adm-row button.rm{background:#2a2d3a;color:#ff7a90}.adm-tabs{display:flex;gap:8px;padding:0 16px 10px}.adm-tabs button{flex:1;padding:11px;border-radius:14px;background:#14161d;color:#9aa0b0;font-weight:800}.adm-tabs button.on{background:#b8ff4a;color:#10140b}.adm-h{color:#9aa0b0;font-size:13px;padding:6px 16px}';
+  vcss.textContent = '.vbadge{display:inline-flex;vertical-align:-3px;margin-left:5px}.vbadge svg{display:block}.admbtn{width:100%;margin-top:10px;padding:14px;border-radius:16px;background:#14161d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.adm{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.adm.show{display:flex}.adm-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.adm-top b{flex:1;font-size:17px}.adm-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.adm input{margin:4px 16px 10px;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:14px;color:#fff;font-size:16px;outline:0}.adm-list{flex:1;overflow:auto;padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}.adm-row{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:14px;padding:11px}.adm-row .t{flex:1;min-width:0}.adm-row .t b{display:flex;align-items:center;font-size:15px}.adm-row .t>span{display:block;color:#9aa0b0;font-size:13px}.adm-row button{padding:9px 14px;border-radius:18px;font-weight:800;font-size:13px;background:#1d9bf0;color:#fff}.adm-row button.rm{background:#2a2d3a;color:#ff7a90}.adm-tabs{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto}.adm-tabs button{flex:none;white-space:nowrap;padding:11px 15px;border-radius:14px;background:#14161d;color:#9aa0b0;font-weight:800}.adm-tabs button.on{background:#b8ff4a;color:#10140b}.adm-h{color:#9aa0b0;font-size:13px;padding:6px 16px}';
   document.head.append(vcss);
   const tierOf = p => (p && (p.tier || (p.verified ? 'blue' : ''))) || '';
   const TIER_NAME = { blue: 'Blue: verified member', red: 'Red: leaders, politicians and businesses', green: 'Green: heads of state and royalty' };
@@ -148,10 +148,10 @@ if (CIN.configured) {
   { MENU[0][1].push(vrow);
     const ma0 = window.menuAction;
     window.menuAction = function (k) { if (k === 'verify') { closeDrawer(); if (!state.account) { gate(null); return; } if (state.admin) { $('#admQ').value = ''; adm.classList.add('show'); admTab('req'); } else openApply(); return; } return ma0.apply(this, arguments); }; }
-  function paintApply() { vrow[2] = !state.account ? 'Apply' : state.admin ? 'Admin' : state.tier ? 'Verified' : 'Apply'; }
+  function paintApply() { vrow[1] = state.admin ? 'Admin panel' : 'Verification'; vrow[2] = !state.account ? 'Apply' : state.admin ? 'Admin' : state.tier ? 'Verified' : 'Apply'; }
   // admin panel: search a member and give or remove the blue tick
   const adm = document.createElement('div'); adm.className = 'adm'; adm.id = 'adm';
-  adm.innerHTML = '<div class="adm-top"><button type="button" id="admBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Verification</b></div><div class="adm-tabs"><button type="button" id="admTReq" class="on">Applications</button><button type="button" id="admTMem">Members</button><button type="button" id="admTLog">Log</button></div><input id="admQ" placeholder="Search a username" autocomplete="off" style="display:none"><div class="adm-list" id="admList"></div>';
+  adm.innerHTML = '<div class="adm-top"><button type="button" id="admBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b>Admin</b></div><div class="adm-tabs"><button type="button" id="admTReq" class="on">Applications</button><button type="button" id="admTMem">Members</button><button type="button" id="admTRep">Reports</button><button type="button" id="admTFb">Feedback</button><button type="button" id="admTLog">Log</button></div><input id="admQ" placeholder="Search a username" autocomplete="off" style="display:none"><div class="adm-list" id="admList"></div>';
   $('.app').append(adm);
   // safety check before a tick is given or removed; the answer is saved in the log
   function askAdmin(u, t, label) {
@@ -234,9 +234,50 @@ if (CIN.configured) {
       });
     } catch (e) { list.innerHTML = '<div class="adm-h">Could not load applications.</div>'; }
   }
-  function admTab(t) { $('#admTReq').classList.toggle('on', t === 'req'); $('#admTMem').classList.toggle('on', t === 'mem'); $('#admTLog').classList.toggle('on', t === 'log'); $('#admQ').style.display = t === 'mem' ? '' : 'none'; if (t === 'req') admRequests(); else if (t === 'mem') admLoad(''); else admLog(); }
-  $('#admTLog').onclick = () => admTab('log');
-  $('#admTReq').onclick = () => admTab('req'); $('#admTMem').onclick = () => admTab('mem');
+  const TABS = { req: 'admTReq', mem: 'admTMem', rep: 'admTRep', fb: 'admTFb', log: 'admTLog' };
+  function admTab(t) { Object.keys(TABS).forEach(k => $('#' + TABS[k]).classList.toggle('on', k === t)); $('#admQ').style.display = t === 'mem' ? '' : 'none'; if (t === 'req') admRequests(); else if (t === 'mem') admLoad(''); else if (t === 'rep') admReports(); else if (t === 'fb') admFeedback(); else admLog(); }
+  Object.keys(TABS).forEach(k => { $('#' + TABS[k]).onclick = () => admTab(k); });
+  const when = x => x && x.createdAt && x.createdAt.seconds ? new Date(x.createdAt.seconds * 1000).toLocaleString() : 'just now';
+  const mkBtn = (label, bg, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'flex:1;padding:10px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + bg; b.onclick = fn; return b; };
+  async function admReports() {
+    const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
+    try {
+      const items = await CIN.listReports(); $('#admTRep').textContent = 'Reports' + (items.length ? ' (' + items.length + ')' : '');
+      list.innerHTML = items.length ? '<div class="adm-h">Videos and photos people reported. Look, then remove or dismiss.</div>' : '<div class="adm-h">No reports. Nice.</div>';
+      for (const q of items) {
+        const r = document.createElement('div'); r.className = 'adm-row'; r.style.cssText = 'flex-direction:column;align-items:stretch;gap:8px';
+        const h = document.createElement('div'); h.style.cssText = 'font-weight:800'; h.textContent = 'Reason: ' + q.reason;
+        const m = document.createElement('div'); m.style.cssText = 'color:#9aa0b0;font-size:12px'; m.textContent = when(q);
+        const info = document.createElement('div'); info.style.cssText = 'color:#dfe1e8;font-size:14px;word-break:break-word'; info.textContent = 'Loading post...';
+        const box = document.createElement('div'); const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px';
+        r.append(h, m, info, box, row); list.append(r);
+        const dismiss = mkBtn('Dismiss', '#3a3f4d', async () => { try { await CIN.closeReport(q.id); r.remove(); toast('Report closed'); } catch (e) { toast('Could not close. Publish the new Firestore rules.'); } });
+        CIN.getVideoDoc(q.videoId).then(v => {
+          if (!v) { info.textContent = 'This post was already removed.'; row.append(dismiss); return; }
+          info.textContent = '@' + v.handle + ' · ' + (v.type === 'photo' ? 'Photo' : 'Video') + (v.caption ? ' · ' + v.caption : '');
+          row.append(mkBtn('Preview', '#2b6cff', () => { if (box.firstChild) { box.innerHTML = ''; return; } const m2 = document.createElement(v.type === 'photo' ? 'img' : 'video'); m2.style.cssText = 'width:100%;max-height:50vh;object-fit:contain;background:#000;border-radius:10px'; if (v.type === 'photo') m2.src = v.photoURL; else { m2.src = v.videoURL; m2.controls = true; m2.playsInline = true; } box.append(m2); }),
+            mkBtn('Remove post', '#ff3b30', async () => { if (!confirm('Remove this post for everyone? This cannot be undone.')) return; try { await CIN.removeVideoAsAdmin(q.videoId); await CIN.closeReport(q.id); r.remove(); loadFeed(true); toast('Post removed'); } catch (e) { toast('Could not remove. Publish the new Firestore rules.'); } }), dismiss);
+        }).catch(() => { info.textContent = 'Could not load the post.'; row.append(dismiss); });
+      }
+    } catch (e) { list.innerHTML = '<div class="adm-h">Could not load reports. Publish the new Firestore rules.</div>'; }
+  }
+  const FBK = { idea: 'Idea', problem: 'Problem', delete: 'Delete account', person: 'Report a person' };
+  async function admFeedback() {
+    const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
+    try {
+      const items = await CIN.listFeedback(); $('#admTFb').textContent = 'Feedback' + (items.length ? ' (' + items.length + ')' : '');
+      list.innerHTML = items.length ? '<div class="adm-h">Messages from members. Close each one when done.</div>' : '<div class="adm-h">No messages yet.</div>';
+      items.forEach(q => {
+        const r = document.createElement('div'); r.className = 'adm-row'; r.style.cssText = 'flex-direction:column;align-items:stretch;gap:6px';
+        const h = document.createElement('div'); h.style.cssText = 'font-weight:800;color:' + (q.kind === 'delete' ? '#ff7a90' : '#b8ff4a'); h.textContent = (FBK[q.kind] || q.kind) + ' · @' + (q.handle || '?');
+        const t = document.createElement('div'); t.style.cssText = 'color:#dfe1e8;font-size:14px;white-space:pre-wrap;word-break:break-word'; t.textContent = q.text;
+        const m = document.createElement('div'); m.style.cssText = 'color:#9aa0b0;font-size:12px'; m.textContent = when(q);
+        const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px';
+        row.append(mkBtn('Close', '#3a3f4d', async () => { try { await CIN.closeFeedback(q.id); r.remove(); toast('Closed'); } catch (e) { toast('Could not close. Publish the new Firestore rules.'); } }));
+        r.append(h, t, m, row); list.append(r);
+      });
+    } catch (e) { list.innerHTML = '<div class="adm-h">Could not load feedback. Publish the new Firestore rules.</div>'; }
+  }
   let admT = null;
   $('#admQ').oninput = () => { clearTimeout(admT); admT = setTimeout(() => admLoad($('#admQ').value.trim().toLowerCase().replace(/^@/, '')), 300); };
   $('#admBack').onclick = () => adm.classList.remove('show');
@@ -279,7 +320,7 @@ if (CIN.configured) {
     const photo = v.type === 'photo';
     if (photo) { const im = document.createElement('img'); im.className = 'pimg'; im.alt = 'Photo by @' + v.handle; im.src = v.photoURL; clip.querySelector('video').replaceWith(im); }
     else clip.querySelector('video').src = v.videoURL;
-    clip.querySelector('.creator').textContent = '@' + v.handle;
+    clip.querySelector('.creator').textContent = '@' + v.handle; if (state.uid && v.uid === state.uid && (v.privacy || 'everyone') !== 'everyone') { const pt = document.createElement('span'); pt.className = 'privtag'; pt.innerHTML = CI.svg('lock', 12) + (v.privacy === 'only_me' ? 'Only you' : 'Friends'); clip.querySelector('.creator').append(pt); }
     clip.querySelector('.caption').textContent = v.caption || '';
     clip.querySelector('.tags').textContent = (v.tags || []).map(t => '#' + t).join(' ');
     clip.querySelector('.avatar').textContent = (v.handle[0] || 'C').toUpperCase();
@@ -580,10 +621,19 @@ if (CIN.configured) {
   async function refreshMine() {
     if (!state.uid) { mine.innerHTML = ''; $('#profile .empty').style.display = ''; return; }
     try {
-      const list = await CIN.getUserVideos(state.uid);
+      pfList = await CIN.getUserVideos(state.uid);
+      $('#postCount').textContent = pfList.length; state.posts = pfList.length;
+      paintMine();
+    } catch (e) { console.warn('My posts failed', e); toast('Could not load your posts'); }
+  }
+  function paintMine() {
+    {
+      const all = pfList, nPriv = all.filter(v => (v.privacy || 'everyone') !== 'everyone').length;
+      $('#pfPriv').textContent = 'Private' + (nPriv ? ' (' + nPriv + ')' : '');
+      const list = pfFilter === 'private' ? all.filter(v => (v.privacy || 'everyone') !== 'everyone') : all;
       mine.innerHTML = '';
-      $('#profile .empty').style.display = list.length ? 'none' : '';
-      $('#postCount').textContent = list.length; state.posts = list.length;
+      const emp = $('#profile .empty'); emp.style.display = list.length ? 'none' : '';
+      if (!list.length && all.length) { emp.style.display = 'none'; const n = document.createElement('p'); n.className = 'hlp-p'; n.style.cssText = 'grid-column:1/-1;text-align:center;color:#9aa0b0'; n.textContent = 'No private posts. Open a post and choose Privacy settings to make one Friends or Only you.'; mine.append(n); }
       list.forEach(v => {
         const t = document.createElement('button'); t.type = 'button'; t.className = 'mytile'; t.setAttribute('aria-label', 'Open post');
         const photo = v.type === 'photo';
@@ -595,10 +645,10 @@ if (CIN.configured) {
         t.onclick = async () => {
           openManager(v);
         };
-        if ((v.privacy || 'everyone') !== 'everyone') { const l = document.createElement('b'); l.className = 'lk'; l.innerHTML = CI.svg('lock', 14); t.append(l); }
+        if ((v.privacy || 'everyone') !== 'everyone') { const l = document.createElement('b'); l.className = 'lk'; l.innerHTML = CI.svg('lock', 14) + (v.privacy === 'only_me' ? '<span style="font-size:11px;margin-left:3px">Only you</span>' : '<span style="font-size:11px;margin-left:3px">Friends</span>'); t.append(l); }
         mine.append(t);
       });
-    } catch (e) { console.warn('My posts failed', e); toast('Could not load your posts'); }
+    }
   }
   // ---- manage one of my posts (privacy settings) ----
   const mcss = document.createElement('style');
@@ -694,6 +744,111 @@ if (CIN.configured) {
     pill.onclick = async () => { pill.style.display = 'none'; fresh.clear(); navigate('home'); await loadFeed(true); $('#feed').scrollTo({ top: 0 }); };
     const nav2 = window.navigate; window.navigate = function (s) { nav2.apply(this, arguments); if (s !== 'home') pill.style.display = 'none'; else if (fresh.size) pill.style.display = 'flex'; };
   }
+
+  // ---------- Help center, guidelines, privacy, about ----------
+  const hcss = document.createElement('style');
+  hcss.textContent = `.hlp{position:absolute;inset:0;z-index:37;background:#07080c;display:none;flex-direction:column}.hlp.show{display:flex}
+.hlp-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.hlp-top b{flex:1;font-size:18px}.hlp-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}
+.hlp-body{flex:1;overflow:auto;padding:0 16px calc(24px + env(safe-area-inset-bottom))}.hlp-body h3{margin:18px 0 8px;font-size:13px;color:#9aa0b0;letter-spacing:.5px;text-transform:uppercase}
+.hlp-body details{background:#14161d;border-radius:14px;padding:14px;margin-bottom:8px}.hlp-body summary{font-weight:800;font-size:15px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:10px}.hlp-body summary::after{content:'+';color:#b8ff4a;font-size:20px;line-height:1}.hlp-body details[open] summary::after{content:'\\2212'}
+.hlp-body details p,.hlp-p{color:#cfd2dc;font-size:14px;line-height:1.55;margin:10px 0 0}.hlp-card{background:#14161d;border-radius:14px;padding:14px;margin-bottom:10px}.hlp-card b{display:block;margin-bottom:4px}
+.hlp-chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}.hlp-chips button{padding:10px 14px;border-radius:20px;background:#1d2029;color:#dfe1e8;font-weight:800;font-size:13px}.hlp-chips button.on{background:#b8ff4a;color:#10140b}
+.hlp-body textarea{width:100%;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:12px;color:#fff;font-size:15px;outline:0;resize:none;margin-bottom:10px}.hlp-body .primary,.hlp-body .secondary{width:100%;margin-top:8px}
+.privtag{display:inline-flex;align-items:center;gap:4px;background:#000a;border-radius:10px;padding:2px 8px;font-size:12px;margin-left:8px;vertical-align:middle}
+.pf-seg{display:flex;gap:8px;margin:14px 0 0}.pf-seg button{padding:9px 16px;border-radius:18px;background:#1d2029;color:#cfd2dc;font-weight:800;font-size:13px}.pf-seg button.on{background:#b8ff4a;color:#10140b}`;
+  document.head.append(hcss);
+  const hlp = document.createElement('div'); hlp.className = 'hlp'; hlp.id = 'hlp';
+  hlp.innerHTML = '<div class="hlp-top"><button type="button" id="hlpBack" aria-label="Back">' + CI.svg('back', 22) + '</button><b id="hlpTitle"></b></div><div class="hlp-body" id="hlpBody"></div>';
+  $('.app').append(hlp);
+  $('#hlpBack').onclick = () => hlp.classList.remove('show');
+  const FAQ = [
+    ['How do I post a video or photo?', 'Tap the + button. Under Post, tap Gallery and choose what you want, or tap Camera. Videos and Photos tabs show only that kind. Tap Next, add a caption and sound, then Post.'],
+    ['Where is a post I made Only you?', 'Open Profile. Posts that are not public show a lock. Tap the Private button above your posts to see only those. Tap a post, then Privacy settings, to change who can see it.'],
+    ['What do Everyone, Friends and Only you mean?', 'Everyone: anybody. Friends: people you follow who also follow you back. Only you: nobody else sees it inside CIN.'],
+    ['How do I add music?', 'When you add a sound you can search free music online (credited to the artist) or use a song from your phone. Tap Add sound under Create, or Sound on the camera.'],
+    ['How do I get a verification tick?', 'Open the menu on Profile and tap Verification. Send a short reason and a proof link. The CIN owner checks and decides. Blue is a verified member, red a leader or business, green a head of state or royalty.'],
+    ['How do I go LIVE?', 'Tap +, then LIVE. A few people can watch at once. Use Wi-Fi or a strong signal. Live works best when the viewers also have a good connection.'],
+    ['How do I stop someone annoying me?', 'Tap Share on their video, then Report this video. You can also send us a message below with Report a person. Reports are reviewed by a real person.'],
+    ['I forgot my password. What now?', 'Use Forgot password on the sign-in screen if it is there, or send us a Problem message from another account.'],
+    ['Can I delete my account?', 'Yes, yourself. Open Profile, menu, Settings and privacy, then Delete my account. Type your password to confirm. Your profile, username and posts are removed for good.'],
+    ['Can I have two accounts?', 'Yes. Use a different email for each. Open Settings and tap Switch account to log out and sign in with the other one.']
+  ];
+  function hAccordion(list) { return list.map(([q, a]) => '<details><summary>' + esc(q) + '</summary><p>' + esc(a) + '</p></details>').join(''); }
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const card = (t, d) => '<div class="hlp-card"><b>' + esc(t) + '</b><div class="hlp-p" style="margin:0">' + esc(d) + '</div></div>';
+  function pageHelp() {
+    $('#hlpTitle').textContent = 'Help and feedback';
+    $('#hlpBody').innerHTML = '<h3>Quick answers</h3>' + hAccordion(FAQ) +
+      '<h3>Send us a message</h3><p class="hlp-p" style="margin:0 0 10px">A real person reads every message. Tell us what is wrong or what to add.</p>' +
+      '<div class="hlp-chips" id="fbKinds"><button type="button" data-k="idea" class="on">Idea</button><button type="button" data-k="problem">Problem</button><button type="button" data-k="person">Report a person</button></div>' +
+      '<textarea id="fbText" rows="4" maxlength="600" placeholder="Write here (at least 5 letters)"></textarea><button type="button" class="primary" id="fbSend">Send</button>' +
+      '<h3>More</h3><button type="button" class="secondary" data-go="rules">Community guidelines</button><button type="button" class="secondary" data-go="privacy">Privacy and data</button><button type="button" class="secondary" data-go="about">About CIN</button>';
+    let kind = 'idea';
+    $$('#fbKinds button').forEach(b => b.onclick = () => { kind = b.dataset.k; $$('#fbKinds button').forEach(x => x.classList.toggle('on', x === b)); });
+    $('#fbSend').onclick = async () => {
+      if (!state.account) { hlp.classList.remove('show'); gate(null); return; }
+      const t = $('#fbText').value.trim(); if (t.length < 5) { toast('Write a few more words'); return; }
+      const btn = $('#fbSend'); btn.disabled = true;
+      try { await CIN.sendFeedback(kind, t); $('#fbText').value = ''; toast('Sent. Thank you.'); }
+      catch (e) { toast('Could not send. Check your internet and try again.'); }
+      btn.disabled = false;
+    };
+    $$('#hlpBody [data-go]').forEach(b => b.onclick = () => openHelp(b.dataset.go));
+  }
+  function pageRules() {
+    $('#hlpTitle').textContent = 'Community guidelines';
+    $('#hlpBody').innerHTML = '<p class="hlp-p">CIN is for creating, inspiring and connecting. These rules keep it safe and fair for everyone.</p><h3>Not allowed</h3>' +
+      card('Harassment and hate', 'No bullying, threats, or attacks on people for who they are.') + card('Sexual content and nudity', 'Keep CIN safe for everyone. Adult content is not allowed.') +
+      card('Violence and danger', 'No violence, self-harm, or dangerous challenges.') + card('Scams and fake accounts', 'Do not pretend to be someone else, sell fake things or trick people for money. Fake ticks are removed.') +
+      card('Other people\'s work', 'Only post what you made or have the right to share. Use the free music from the CIN music search and credit the artist.') +
+      card('Children', 'You must be 13 or older. We remove anything that puts a child at risk.') +
+      '<h3>What happens if you break them</h3><p class="hlp-p">Posts can be removed. Repeat or serious cases can lead to the account being removed. Anyone can report a post with Share, then Report this video.</p>';
+  }
+  function pagePrivacy() {
+    $('#hlpTitle').textContent = 'Privacy and data';
+    $('#hlpBody').innerHTML = '<p class="hlp-p">The plain truth about your data.</p><h3>What CIN keeps</h3>' +
+      card('Your account', 'Email, name, username, profile photo and the interests you chose. Your password is handled by Google Firebase and is never visible to CIN.') +
+      card('What you post', 'Videos, photos, captions, comments, likes, follows and messages. Files are stored with Cloudinary, everything else in Google Firebase.') +
+      '<h3>What CIN does not do</h3>' + card('No selling', 'We do not sell your data and we do not show ads.') + card('No tracking by others', 'Outside scripts and trackers are blocked by the app.') +
+      '<h3>Please know</h3>' + card('Only you and Friends', 'These hide a post inside CIN from other people. They are not encryption, so never post something truly secret.') +
+      card('Live and music', 'LIVE connects viewers directly to you, so they can see your network address, like any video call. Free music comes from Jamendo.') +
+      card('Delete your data', 'You can delete your own account any time: Settings, then Delete my account. Your profile, username and posts are removed. Clear data on this device removes only what is saved on your phone.');
+  }
+  function pageAbout() {
+    $('#hlpTitle').textContent = 'About CIN';
+    $('#hlpBody').innerHTML = '<div class="hlp-card" style="text-align:center"><img src="logo.png" alt="" width="72" height="72" style="border-radius:18px"><b style="font-size:20px;margin-top:8px">CIN</b><div class="hlp-p" style="margin:0">Create. Inspire. Network.</div></div>' +
+      card('Version', 'Beta. New things are added often. Tell us what to improve.') + card('Who runs it', 'CIN is built and run by Dickson in Kampala, Uganda.') +
+      card('Free and independent', 'CIN is free to use. Videos are stored on free cloud plans, so very large files are limited.') +
+      '<button type="button" class="secondary" data-go="help">Help and feedback</button>';
+    $$('#hlpBody [data-go]').forEach(b => b.onclick = () => openHelp(b.dataset.go));
+  }
+  function openHelp(k) { ({ help: pageHelp, rules: pageRules, privacy: pagePrivacy, about: pageAbout }[k] || pageHelp)(); $('#hlpBody').scrollTop = 0; hlp.classList.add('show'); }
+  window.CINhelp = openHelp;
+
+  // ---------- profile: All / Public / Private filter ----------
+  const seg = document.createElement('div'); seg.className = 'pf-seg'; seg.id = 'pfSeg';
+  seg.innerHTML = '<button type="button" data-f="all" class="on">All</button><button type="button" data-f="private" id="pfPriv">Private</button>';
+  mine.before(seg);
+  let pfFilter = 'all', pfList = [];
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => { pfFilter = b.dataset.f; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); paintMine(); });
+
+  // ---------- switch account / delete my account ----------
+  window.CINacct = async function (k) {
+    if (k === 'switch') {
+      if (!state.account) { gate(null); return; }
+      if (!confirm('Log out and sign in with another account? You can come back to this one any time with its email and password.')) return;
+      try { await CIN.signOut(); } catch (e) {}
+      location.reload(); return;
+    }
+    if (!state.account) { gate(null); return; }
+    if (!confirm('Delete your account for good?\n\nYour profile, username and all your posts will be removed. This cannot be undone.')) return;
+    const pw = prompt('Type your password to confirm. Type nothing to cancel.', ''); if (!pw) return;
+    try { await CIN.deleteMyAccount(pw); toast('Your account was deleted'); setTimeout(() => location.reload(), 900); }
+    catch (e) {
+      const c = String((e && (e.code || e.message)) || '');
+      toast(/wrong-password|invalid-credential|invalid-login/i.test(c) ? 'Wrong password. Nothing was deleted.' : /permission/i.test(c) ? 'Firebase blocked this. Publish the new Firestore rules first.' : /requires-recent/i.test(c) ? 'Please log in again, then try once more.' : 'Could not delete. Try again.');
+    }
+  };
 
   // ---------- Start ----------
   let first = true;

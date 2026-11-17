@@ -393,13 +393,12 @@
     '<div class="st-pane show" id="stPost"><h2>New post</h2>' +
     '<div class="st-seg" id="stSeg"><button class="on" data-f="all">All</button><button data-f="video">Videos</button><button data-f="photo">Photos</button></div>' +
     '<div class="st-grid" id="stGrid"></div>' +
-    '<p class="st-hint">A website cannot browse your whole gallery, so tap <b>Gallery</b> and choose the videos or photos you want. They then show up here.</p>' +
+    '<p class="st-hint" id="stHint"></p>' +
     '<div class="st-act" id="stAct"></div></div>' +
     '<div class="st-pane" id="stCreate"><h2>CREATE</h2><div class="st-tools">' +
     tool('rec', 'video', 'Record', '#ff8fb3', '#ff4f91') + tool('photo', 'camera', 'Photo', '#ffd36b', '#ff9a56') + tool('text', 'text', 'Text image', '#8fe9e3', '#18c8c0') + tool('sound', 'music', 'Add sound', '#c9b8ff', '#7d69ff') +
     '</div><button class="st-new" id="stNew" type="button"><b>' + ic('plus', 18) + '</b>New video</button>' +
-    '<h3>Auto music</h3><div class="opts" id="stMood"><button data-m="off">Off</button><button data-m="chill">Chill</button><button data-m="upbeat">Upbeat</button><button data-m="inspire">Inspire</button></div>' +
-    '<p class="st-hint">Each video gets its own tune. Pick a mood, or add your own song with <b>Add sound</b>, then record or choose a video.</p></div>' +
+    '<p class="st-hint">Add a song with <b>Add sound</b> first if you like, then record or choose a video. You can also search free music while editing.</p></div>' +
     '<div class="st-pane" id="stLive"><div class="st-live"><div class="ico-big">' + ic('live', 44) + '</div><h2>Go LIVE</h2><p>Stream live from your camera. A few people can watch at once and chat with you. Best on Wi-Fi or a strong signal.</p><input id="stLiveTitle" maxlength="60" placeholder="Add a title"><button class="st-golive" id="stGoLive" type="button">Go LIVE</button></div></div>' +
     '<div class="st-tabs"><button data-st="post" class="on">POST</button><button data-st="create">CREATE</button><button data-st="live">LIVE</button></div>' +
     '<div class="st-text" id="stText"><div class="st-thead"><button id="stTBack" aria-label="Back">' + ic('back', 22) + '</button><b>Text image</b><span></span></div>' +
@@ -412,12 +411,16 @@
 
   let items = [], sel = -1, filter = 'all';
   const gal = $('#stGallery');
+  const HINT = { all: 'Tap Gallery and choose videos or photos. They show up here.', video: 'Only videos are shown. Tap Choose videos to add more.', photo: 'Only photos are shown. Tap Choose photos to add more.' };
   function renderGrid() {
     const g = $('#stGrid'); g.innerHTML = '';
     const mk = (icon, label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'st-tile st-b'; b.innerHTML = ic(icon, 30); b.append(label); b.onclick = fn; return b; };
-    g.append(mk('camera', 'Camera', () => openCam('video')), mk('image', 'Gallery', () => gal.click()));
-    items.forEach((it, i) => {
-      if (filter !== 'all' && it.kind !== filter) return;
+    const pick = acc => { gal.accept = acc; gal.click(); };
+    if (filter === 'photo') g.append(mk('camera', 'Take photo', () => openCam('photo')), mk('image', 'Choose photos', () => pick('image/*')));
+    else if (filter === 'video') g.append(mk('video', 'Record', () => openCam('video')), mk('image', 'Choose videos', () => pick('video/*')));
+    else g.append(mk('camera', 'Camera', () => openCam('video')), mk('image', 'Gallery', () => pick('video/*,image/*')));
+    const shown = items.map((it, i) => [it, i]).filter(([it]) => filter === 'all' || it.kind === filter);
+    shown.forEach(([it, i]) => {
       const t = document.createElement('button'); t.type = 'button'; t.className = 'st-tile' + (i === sel ? ' on' : '');
       const m = document.createElement(it.kind === 'video' ? 'video' : 'img');
       if (it.kind === 'video') {
@@ -428,6 +431,7 @@
       t.onclick = () => { sel = i; renderGrid(); renderAct(); };
       g.append(t);
     });
+    $('#stHint').textContent = shown.length || filter === 'all' ? HINT[filter] : 'No ' + (filter === 'photo' ? 'photos' : 'videos') + ' yet. ' + HINT[filter].split('. ').pop();
   }
   function renderAct() {
     const a = $('#stAct'); a.innerHTML = ''; a.classList.toggle('show', sel >= 0);
@@ -448,13 +452,14 @@
   }
   gal.addEventListener('change', e => {
     const fs = [...e.target.files]; if (!fs.length) return;
-    items.forEach(i => URL.revokeObjectURL(i.url));
-    items = fs.map(f => ({ file: f, url: URL.createObjectURL(f), kind: /^video\//.test(f.type) || /\.(mp4|webm|mov|3gp|mkv)$/i.test(f.name) ? 'video' : 'photo' }));
-    sel = items.length === 1 ? 0 : -1; filter = 'all';
-    $$('#stSeg button').forEach(b => b.classList.toggle('on', b.dataset.f === 'all'));
+    const add = fs.map(f => ({ file: f, url: URL.createObjectURL(f), kind: /^video\//.test(f.type) || /\.(mp4|webm|mov|3gp|mkv)$/i.test(f.name) ? 'video' : 'photo' }));
+    items = add.concat(items).slice(0, 80);
+    const kinds = new Set(add.map(a => a.kind)); if (filter !== 'all' && !kinds.has(filter)) { filter = [...kinds][0]; }
+    sel = items.indexOf(add[0]);
+    $$('#stSeg button').forEach(b => b.classList.toggle('on', b.dataset.f === filter));
     renderGrid(); renderAct(); e.target.value = '';
   });
-  $$('#stSeg button').forEach(b => b.onclick = () => { filter = b.dataset.f; $$('#stSeg button').forEach(x => x.classList.toggle('on', x === b)); renderGrid(); });
+  $$('#stSeg button').forEach(b => b.onclick = () => { filter = b.dataset.f; if (sel >= 0 && filter !== 'all' && items[sel].kind !== filter) { sel = -1; renderAct(); } $$('#stSeg button').forEach(x => x.classList.toggle('on', x === b)); renderGrid(); });
 
   function paintMood() { $$('#stMood [data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === musicPick)); }
   $$('#stMood [data-m]').forEach(b => b.onclick = () => { const real = $('#musicOpts [data-m="' + b.dataset.m + '"]'); if (real) real.click(); paintMood(); });

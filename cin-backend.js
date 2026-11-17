@@ -2,7 +2,7 @@
 // Include in index.html with <script type="module" src="cin-backend.js"></script>
 // and fill in firebaseConfig from Firebase Console > Project settings > Your apps > Web.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendEmailVerification }
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, deleteUser }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, collection, query, where, orderBy, limit,
   getDocs, writeBatch, increment, serverTimestamp, onSnapshot, startAfter }
@@ -68,6 +68,17 @@ export const CIN = {
   },
   signIn: (email, password) => signInWithEmailAndPassword(auth, email, password),
   signOut: () => fbSignOut(auth),
+  // Member deletes their OWN account: confirm password, remove posts, username, profile, then the login itself
+  async deleteMyAccount(password) {
+    const u = auth.currentUser; if (!u) throw new Error("Not signed in");
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password));
+    const uid = u.uid, p = await CIN.getProfile(uid);
+    const vs = await getDocs(query(collection(db, "videos"), where("uid", "==", uid), limit(400)));
+    for (const d of vs.docs) await deleteDoc(d.ref);
+    if (p && p.handle) { try { await deleteDoc(doc(db, "handles", p.handle)); } catch (e) {} }
+    await deleteDoc(doc(db, "users", uid));
+    await deleteUser(u);
+  },
   async getProfile(uid) { const s = await getDoc(doc(db, "users", uid)); return s.exists() ? { id: uid, ...s.data() } : null; },
   updateProfile: (data) => updateDoc(doc(db, "users", me()), data), // name, bio, photoURL, private
 
@@ -256,7 +267,18 @@ export const CIN = {
   respondCollab: (id, status) => updateDoc(doc(db, "collabs", id), { status }), // 'accepted' | 'declined'
 
   // ---------- Reports ----------
-  report: (videoId, reason) => addDoc(collection(db, "reports"), { videoId, reason, reporterUid: me(), createdAt: serverTimestamp() })
+  report: (videoId, reason) => addDoc(collection(db, "reports"), { videoId, reason: String(reason).slice(0, 80), reporterUid: me(), createdAt: serverTimestamp() }),
+
+  // ---------- Feedback (anyone signed in sends, only admins read) ----------
+  sendFeedback: async (kind, text) => { const p = await CIN.getProfile(me()); return addDoc(collection(db, "feedback"), { uid: me(), handle: (p && p.handle) || "", kind, text: String(text).slice(0, 600), createdAt: serverTimestamp() }); },
+
+  // ---------- Admin moderation ----------
+  async listReports() { const s = await getDocs(query(collection(db, "reports"), orderBy("createdAt", "desc"), limit(40))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
+  async listFeedback() { const s = await getDocs(query(collection(db, "feedback"), orderBy("createdAt", "desc"), limit(40))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
+  async getVideoDoc(id) { const d = await getDoc(doc(db, "videos", id)); return d.exists() ? { id: d.id, ...d.data() } : null; },
+  closeReport: (id) => deleteDoc(doc(db, "reports", id)),
+  closeFeedback: (id) => deleteDoc(doc(db, "feedback", id)),
+  removeVideoAsAdmin: (id) => deleteDoc(doc(db, "videos", id))
 };
 
 CIN.configured = !firebaseConfig.apiKey.startsWith("YOUR_"); // false until you paste your Firebase config
