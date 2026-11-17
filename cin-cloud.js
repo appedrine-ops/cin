@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=12";
+import { CIN } from "./cin-backend.js?v=13";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -93,7 +93,7 @@ if (CIN.configured) {
   document.head.append(vcss);
   const tierOf = p => (p && (p.tier || (p.verified ? 'blue' : ''))) || '';
   const TIER_NAME = { blue: 'Blue: verified member', red: 'Red: leaders, politicians and businesses', green: 'Green: heads of state and royalty' };
-  const badgeEl = tier => { const s = document.createElement('span'); s.className = 'vbadge'; s.title = TIER_NAME[tier] || ''; s.innerHTML = CI.verified(15, tier || 'blue'); return s; };
+  const badgeEl = tier => { const s = document.createElement('span'); s.className = 'vbadge'; s.title = TIER_NAME[tier] || ''; s.innerHTML = CI.verified(17, tier || 'blue'); return s; };
   function paintBadges() {
     $$('.clip[data-cloud]').forEach(c => { const cr = c.querySelector('.creator'); const t = vCache.get(c.dataset.uid); if (cr && t && !cr.querySelector('.vbadge')) cr.append(badgeEl(t)); });
   }
