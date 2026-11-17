@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=17";
+import { CIN } from "./cin-backend.js?v=18";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -93,7 +93,7 @@ if (CIN.configured) {
   vcss.textContent = '.vbadge{display:inline-flex;vertical-align:-3px;margin-left:5px}.vbadge svg{display:block}.admbtn{width:100%;margin-top:10px;padding:14px;border-radius:16px;background:#14161d;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px}.adm{position:absolute;inset:0;z-index:36;background:#07080c;display:none;flex-direction:column}.adm.show{display:flex}.adm-top{display:flex;align-items:center;gap:10px;padding:14px 12px}.adm-top b{flex:1;font-size:17px}.adm-top button{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.adm input{margin:4px 16px 10px;background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:14px;color:#fff;font-size:16px;outline:0}.adm-list{flex:1;overflow:auto;padding:0 16px 20px;display:flex;flex-direction:column;gap:8px}.adm-row{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:14px;padding:11px}.adm-row .t{flex:1;min-width:0}.adm-row .t b{display:flex;align-items:center;font-size:15px}.adm-row .t>span{display:block;color:#9aa0b0;font-size:13px}.adm-row button{padding:9px 14px;border-radius:18px;font-weight:800;font-size:13px;background:#1d9bf0;color:#fff}.adm-row button.rm{background:#2a2d3a;color:#ff7a90}.adm-tabs{display:flex;gap:8px;padding:0 16px 10px;overflow-x:auto}.adm-tabs button{flex:none;white-space:nowrap;padding:11px 15px;border-radius:14px;background:#14161d;color:#9aa0b0;font-weight:800}.adm-tabs button.on{background:#b8ff4a;color:#10140b}.adm-h{color:#9aa0b0;font-size:13px;padding:6px 16px}';
   document.head.append(vcss);
   const tierOf = p => (p && (p.tier || (p.verified ? 'blue' : ''))) || '';
-  const TIER_NAME = { blue: 'Blue: verified member', red: 'Red: leaders, politicians and businesses', green: 'Green: heads of state and royalty' };
+  const TIER_NAME = { blue: 'Blue: verified member', red: 'Red: leaders, politicians and businesses', green: 'Green: heads of state and royalty', gold: 'Gold: official CIN account', purple: 'Purple: community or organisation' };
   const badgeEl = tier => { const s = document.createElement('span'); s.className = 'vbadge'; s.title = TIER_NAME[tier] || ''; s.innerHTML = CI.verified(17, tier || 'blue'); return s; };
   function paintBadges() {
     $$('.clip[data-cloud]').forEach(c => { const cr = c.querySelector('.creator'); const t = vCache.get(c.dataset.uid); if (cr && t && !cr.querySelector('.vbadge')) cr.append(badgeEl(t)); });
@@ -118,7 +118,7 @@ if (CIN.configured) {
   async function openApply() {
     ap.classList.add('show'); const body = $('#apBody'); body.innerHTML = '<div class="adm-h">Loading...</div>';
     if (state.tier) {
-      const nm = { blue: 'Blue tick: verified member', red: 'Red tick: leader, politician or business', green: 'Green tick: head of state or royalty' }[state.tier];
+      const nm = { blue: 'Blue tick: verified member', red: 'Red tick: leader, politician or business', green: 'Green tick: head of state or royalty', gold: 'Gold tick: official CIN account', purple: 'Purple tick: community or organisation' }[state.tier];
       body.innerHTML = '<div class="adm-row" style="flex-direction:column;align-items:flex-start;gap:8px"><span style="display:flex;align-items:center;gap:8px;font-weight:800">' + CI.verified(26, state.tier) + ' You are verified</span><span style="color:#9aa0b0;font-size:14px">' + nm + '.</span><span style="color:#9aa0b0;font-size:13px">To protect your tick, a verified account cannot change its name. If your details change, contact the CIN owner.</span></div>'; return;
     }
     let req = null; try { req = await CIN.myRequest(); } catch (e) {}
@@ -129,7 +129,7 @@ if (CIN.configured) {
       '<div class="adm-h">Why should you be verified?</div><textarea id="apWhy" maxlength="300" rows="4" class="pm-cap-in" placeholder="Tell us who you are and what you do"></textarea>' +
       '<div class="adm-h">A link that proves it (optional)</div><input id="apLink" maxlength="200" placeholder="Official website or social page" style="margin:0" class="pm-cap-in"><button type="button" class="primary" id="apSend" style="margin-top:12px;width:100%">Send application</button>';
     const box = $('#apWant');
-    [['blue', 'Blue', 'Verified member'], ['red', 'Red', 'Leader, politician or business'], ['green', 'Green', 'Head of state or royalty']].forEach(([t, n, d]) => {
+    [['blue', 'Blue', 'Verified member'], ['red', 'Red', 'Leader, politician or business'], ['green', 'Green', 'Head of state or royalty'], ['purple', 'Purple', 'Community, group, school or organisation']].forEach(([t, n, d]) => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'adm-row'; b.style.cssText = 'width:100%;text-align:left;color:#fff;border:2px solid ' + (t === want ? '#b8ff4a' : 'transparent');
       b.innerHTML = CI.verified(26, t) + '<span class="t"><b>' + n + '</b><span>' + d + '</span></span>';
       b.onclick = () => { want = t; $$('#apWant button').forEach(x => x.style.borderColor = 'transparent'); b.style.borderColor = '#b8ff4a'; };
@@ -156,7 +156,7 @@ if (CIN.configured) {
   // safety check before a tick is given or removed; the answer is saved in the log
   function askAdmin(u, t, label) {
     const who = '@' + u.handle;
-    if (t === 'red' || t === 'green') {
+    if (t === 'red' || t === 'green' || t === 'gold' || t === 'purple') {
       if (!confirm('Give the ' + label.toUpperCase() + ' tick to ' + who + '?\n\nOnly do this after you have checked who they really are (official website, ID or a call). A wrong tick lets an impostor fool people.')) return null;
       const n = prompt('Short note for the log: how did you check ' + who + '?', ''); if (n === null) return null; return { handle: u.handle, note: n };
     }
@@ -179,14 +179,14 @@ if (CIN.configured) {
   }
   function admRow(u) {
     const cur = tierOf(u), r = document.createElement('div'); r.className = 'adm-row'; r.style.flexWrap = 'wrap';
-    r.innerHTML = '<span class="lv-av" style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#2fb58a);color:#10140b;display:grid;place-items:center;font-weight:900;flex:none"></span><span class="t"><b></b><span></span></span><div class="adm-tiers" style="width:100%;display:flex;gap:6px"></div>';
+    r.innerHTML = '<span class="lv-av" style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#2fb58a);color:#10140b;display:grid;place-items:center;font-weight:900;flex:none"></span><span class="t"><b></b><span></span></span><div class="adm-tiers" style="width:100%;display:flex;flex-wrap:wrap;gap:6px"></div>';
     r.querySelector('.lv-av').textContent = ((u.name || u.handle || '?')[0] || '?').toUpperCase();
     r.querySelector('b').textContent = '@' + u.handle; if (cur) r.querySelector('b').append(badgeEl(cur));
     r.querySelector('.t > span').textContent = u.name || '';
     const box = r.querySelector('.adm-tiers');
-    [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['', 'None', '#3a3f4d']].forEach(([t, label, col]) => {
+    [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['gold', 'Gold', '#f5b301'], ['purple', 'Purple', '#8b5cf6'], ['', 'None', '#3a3f4d']].forEach(([t, label, col]) => {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
-      b.style.cssText = 'flex:1;padding:9px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + (cur === t ? col : '#1d2029') + ';border:2px solid ' + col;
+      b.style.cssText = 'flex:1 1 30%;padding:9px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + (cur === t ? col : '#1d2029') + ';border:2px solid ' + col;
       b.onclick = async () => {
         if (cur === t) return;
         const meta = askAdmin(u, t, label); if (!meta) return; b.disabled = true;
@@ -207,7 +207,7 @@ if (CIN.configured) {
       items.filter(u => u.id !== state.uid).forEach(u => list.append(admRow(u)));
     } catch (e) { list.innerHTML = '<div class="adm-h">Could not load members.</div>'; }
   }
-  const WANT = { blue: 'Blue (member)', red: 'Red (leader or business)', green: 'Green (head of state or royalty)' };
+  const WANT = { blue: 'Blue (member)', red: 'Red (leader or business)', green: 'Green (head of state or royalty)', purple: 'Purple (community or organisation)' };
   async function admRequests() {
     const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
     try {
@@ -221,9 +221,9 @@ if (CIN.configured) {
         const why = document.createElement('div'); why.style.cssText = 'color:#dfe1e8;font-size:14px;white-space:pre-wrap;word-break:break-word'; why.textContent = q.reason || '';
         r.append(h, w, why);
         if (q.link) { const l = document.createElement('div'); l.style.cssText = 'color:#8ab4ff;font-size:13px;word-break:break-all'; l.textContent = 'Proof: ' + q.link; r.append(l); }
-        const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px';
-        [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['', 'Reject', '#3a3f4d']].forEach(([t, label, col]) => {
-          const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'flex:1;padding:10px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + col;
+        const row = document.createElement('div'); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px';
+        [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['purple', 'Purple', '#8b5cf6'], ['gold', 'Gold', '#f5b301'], ['', 'Reject', '#3a3f4d']].forEach(([t, label, col]) => {
+          const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'flex:1 1 30%;padding:10px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + col;
           b.onclick = async () => {
             const meta = askAdmin(q, t, label); if (!meta) return; b.disabled = true;
             try { await CIN.decideRequest(q.id, t, meta); vCache.set(q.id, t); repaintBadges(); toast(t ? '@' + q.handle + ' approved' : 'Application rejected'); admRequests(); }
@@ -767,7 +767,7 @@ if (CIN.configured) {
     ['Where is a post I made Only you?', 'Open Profile. Posts that are not public show a lock. Tap the Private button above your posts to see only those. Tap a post, then Privacy settings, to change who can see it.'],
     ['What do Everyone, Friends and Only you mean?', 'Everyone: anybody. Friends: people you follow who also follow you back. Only you: nobody else sees it inside CIN.'],
     ['How do I add music?', 'When you add a sound you can search free music online (credited to the artist) or use a song from your phone. Tap Add sound under Create, or Sound on the camera.'],
-    ['How do I get a verification tick?', 'Open the menu on Profile and tap Verification. Send a short reason and a proof link. The CIN owner checks and decides. Blue is a verified member, red a leader or business, green a head of state or royalty.'],
+    ['How do I get a verification tick?', 'Open the menu on Profile and tap Verification. Send a short reason and a proof link. The CIN owner checks and decides. Blue is a verified member, purple a community or organisation, red a leader or business, green a head of state or royalty.'],
     ['How do I go LIVE?', 'Tap +, then LIVE. A few people can watch at once. Use Wi-Fi or a strong signal. Live works best when the viewers also have a good connection.'],
     ['How do I stop someone annoying me?', 'Tap Share on their video, then Report this video. You can also send us a message below with Report a person. Reports are reviewed by a real person.'],
     ['I forgot my password. What now?', 'Use Forgot password on the sign-in screen if it is there, or send us a Problem message from another account.'],

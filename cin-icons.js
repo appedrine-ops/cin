@@ -49,7 +49,7 @@
     return '<svg class="ico" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (P[name] || '') + '</svg>';
   }
   // blue verification badge (filled)
-  const TIERS = { blue: '#1d9bf0', red: '#ff3b30', green: '#1fb455' };
+  const TIERS = { blue: '#1d9bf0', red: '#ff3b30', green: '#1fb455', gold: '#f5b301', purple: '#8b5cf6' };
   function verified(size, tier) {
     const s = size || 16, col = TIERS[tier] || TIERS.blue;
     return '<svg class="vb" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" aria-label="Verified" role="img"><circle cx="12" cy="12" r="11" fill="' + col + '"/><circle cx="12" cy="12" r="10.2" fill="none" stroke="#ffffff55" stroke-width="1"/><path d="M7 12.4l3.4 3.4L17.2 8.8" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';

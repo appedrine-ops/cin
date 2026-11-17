@@ -224,7 +224,7 @@ export const CIN = {
   // ---- applications: a member asks, only an admin decides ----
   async applyVerify({ wanted, reason, link }) {
     const uid = me(), p = await CIN.getProfile(uid);
-    await setDoc(doc(db, "verifyRequests", uid), { uid, handle: p.handle, name: p.name, wanted: ["blue", "red", "green"].includes(wanted) ? wanted : "blue", reason: String(reason).slice(0, 300), link: String(link || "").slice(0, 200), status: "pending", createdAt: serverTimestamp() });
+    await setDoc(doc(db, "verifyRequests", uid), { uid, handle: p.handle, name: p.name, wanted: ["blue", "red", "green", "purple"].includes(wanted) ? wanted : "blue", reason: String(reason).slice(0, 300), link: String(link || "").slice(0, 200), status: "pending", createdAt: serverTimestamp() });
   },
   async myRequest() { const s = await getDoc(doc(db, "verifyRequests", me())); return s.exists() ? s.data() : null; },
   async pendingRequests() { const s = await getDocs(query(collection(db, "verifyRequests"), where("status", "==", "pending"), limit(50))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
