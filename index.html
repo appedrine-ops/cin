@@ -8,8 +8,8 @@
 <!-- Security: blocks outside scripts, trackers and network calls. When you add Firebase, allow its hosts in script-src and connect-src. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://*.jamendo.com; media-src 'self' blob: https://res.cloudinary.com https://*.jamendo.com; font-src 'self' data:; connect-src 'self' https://api.cloudinary.com https://api.jamendo.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <link rel="icon" href="logo.png">
-<script src="cin-config.js?v=20"></script><script src="cin-icons.js?v=20"></script>
-<script src="cin-qr.js?v=20"></script>
+<script src="cin-config.js?v=21"></script><script src="cin-icons.js?v=21"></script>
+<script src="cin-qr.js?v=21"></script>
 <title>CIN — Create. Inspire. Network.</title>
 <style>
 :root{--bg:#08090d;--panel:#11131a;--panel2:#191c25;--text:#f7f7fb;--muted:#9da2b1;--accent:#b8ff4a;--pink:#ff4f91;--line:#292d39}
@@ -190,7 +190,7 @@ function gate(fn){pendingAction=fn||null;$('#authModal').classList.add('show');}
 function paintAccount(){$('#guestCard').style.display=state.account?'none':'block';}
 $('#guestJoin').onclick=()=>gate(null);
 $('#joinBtn').onclick=()=>{const n=$('#joinName').value.trim(),h=$('#joinHandle').value.trim().replace(/^@/,'').replace(/\s/g,'_').replace(/[^A-Za-z0-9_.]/g,'').slice(0,20);if(!n||!h){toast('Add your name and a username');return;}if(!$('#joinAge').checked){toast('You must be 13 or older to join');return;}state.name=n;state.handle=h;state.account=true;localStorage.setItem('cin_name',n);localStorage.setItem('cin_handle',h);localStorage.setItem('cin_account','1');updateProfile();paintAccount();$('#authModal').classList.remove('show');toast('Welcome to CIN, '+n);const f=pendingAction;pendingAction=null;if(f)f();};
-const SET_UI=[['Account',[['a','edit','Edit profile','Name and username'],['a','verifyreq','Request verification','Ask the owner for a verified tick'],['a','switch','Switch account','Use a second account of yours'],['a','auth','','']]],
+const SET_UI=[['Account',[['a','edit','Edit profile','Name and username'],['a','verifyreq','Verification','Request a verified tick and see your status'],['a','switch','Switch account','Use a second account of yours'],['a','auth','','']]],
 ['Playback',[['t','autoplay','Autoplay videos','Play videos as you scroll'],['t','sound','Sound on by default','Videos start with sound'],['t','dataSaver','Data saver','Tap to play and load less data']]],
 ['Notifications',[['t','nLikes','Likes','Show a message when someone likes your post'],['t','nComments','Comments','Show a message when someone comments'],['t','nCollabs','Collab requests','Show a message for new collab requests']]],
 ['Privacy',[['a','postprivacy','Who sees my posts','Set for each post: Everyone, Friends or Only you'],['a','privacy','Privacy and data','What CIN stores about you']]],
@@ -226,7 +226,7 @@ $('#drawerBg').onclick=closeDrawer;$('#drawerClose').onclick=closeDrawer;
 updateProfile();syncLikes();renderHub();paintAccount();paintMusic();{const h=decodeURIComponent(location.hash.slice(1)),t=h&&$('.clip[data-id="'+CSS.escape(h)+'"]');if(t)setTimeout(()=>t.scrollIntoView(),150);}$('#followingCount').textContent=state.following.length;$$('.clip').forEach(c=>{setupVideo(c);addFollow(c);setupInfo(c);});renderPeople();
 </script>
 <script>setTimeout(function(){var s=document.getElementById("splash");if(s){s.classList.add("hide");setTimeout(function(){s.remove()},400)}},1200)</script>
-<script src="cin-extras.js?v=20"></script>
-<script src="cin-editor.js?v=20"></script>
-<script type="module" src="cin-cloud.js?v=20"></script><script type="module" src="cin-live.js?v=20"></script>
+<script src="cin-extras.js?v=21"></script>
+<script src="cin-editor.js?v=21"></script>
+<script type="module" src="cin-cloud.js?v=21"></script><script type="module" src="cin-live.js?v=21"></script>
 </body></html>

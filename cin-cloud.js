@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=20";
+import { CIN } from "./cin-backend.js?v=21";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -298,7 +298,7 @@ if (CIN.configured) {
     state.tier = tierOf(p); vCache.set(user.uid, state.tier); paintMyBadge();
     CIN.isAdmin().then(a => { state.admin = a; paintAdmin(); paintApply(); });
     updateProfile(); paintAccount(); setTimeout(() => window.CINrefreshMine && window.CINrefreshMine(), 0);
-    if (p.photoURL && window.CINX) CINX.paintAvatar(p.photoURL);
+    state.photoURL = p.photoURL || ''; state.bannerURL = p.bannerURL || ''; state.bannerType = p.bannerType || ''; loadStories();
     $('#postCount').textContent = state.posts;
     const st = $$('.stats strong'); if (st[1]) st[1].textContent = p.followersCount || 0;
     try {
@@ -946,6 +946,119 @@ if (CIN.configured) {
   // menu rows: Activity center (real screen), My QR code
   { const qrow = ['qr', 'My QR code', '']; MENU[0][1].push(qrow); const ma1 = window.menuAction;
     window.menuAction = function (k) { if (k === 'activity') { closeDrawer(); openActivity(); return; } if (k === 'qr') { closeDrawer(); openQR(); return; } return ma1.apply(this, arguments); }; }
+
+  // ---------- Profile: banner, profile photo, pencil, and stories ----------
+  const pcss = document.createElement('style');
+  pcss.textContent = `#profile .pf-banner{position:relative;height:150px;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,#2b1c55,#0f5a63 60%,#1a7f4b);margin:0 0 0}#profile .pf-banner img,#profile .pf-banner video{width:100%;height:100%;object-fit:cover;display:block}
+.pf-pen{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;background:#000a;color:#fff;display:grid;place-items:center;z-index:2}
+#profile .profile-head{margin-top:-40px;position:relative;z-index:1;padding:0 6px;align-items:flex-end}#profile .profile-head>div:last-child{padding-bottom:6px}#profile .profile-avatar{position:relative;border:4px solid var(--bg);box-sizing:content-box;background-size:cover;background-position:center}#profile .profile-avatar.has-story{box-shadow:0 0 0 3px var(--bg),0 0 0 6px #b8ff4a}
+.pf-plus{position:absolute;right:-6px;bottom:-6px;width:30px;height:30px;border-radius:50%;background:#b8ff4a;color:#10140b;display:grid;place-items:center;border:3px solid var(--bg);padding:0;z-index:2}
+.ed-media{display:flex;align-items:center;gap:12px;background:#14161d;border-radius:16px;padding:12px;margin-bottom:10px}.ed-media .tx{flex:1;min-width:0}.ed-media b{display:block;font-size:15px}.ed-media small{color:#9aa0b0;font-size:12px}
+.ed-media button{padding:10px 16px;border-radius:16px;background:#b8ff4a;color:#10140b;font-weight:800;font-size:13px}.ed-av{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#159b91) center/cover;display:grid;place-items:center;font-weight:900;color:#10140b;flex:none}.ed-bn{width:74px;height:50px;border-radius:12px;background:linear-gradient(135deg,#2b1c55,#0f5a63) center/cover;flex:none;overflow:hidden}.ed-bn img,.ed-bn video{width:100%;height:100%;object-fit:cover}
+.ed-link{background:none;color:#ff7a90;font-weight:700;font-size:13px;padding:2px 0 12px}
+.stt{display:flex;gap:14px;overflow-x:auto;padding:4px 0 16px;margin:0 -4px}.stt::-webkit-scrollbar{display:none}.stb{flex:none;width:68px;text-align:center;background:none;color:#fff;padding:0}.stb .rg{width:64px;height:64px;border-radius:50%;padding:3px;background:conic-gradient(#b8ff4a,#2fb58a,#8b5cf6,#b8ff4a);margin:0 auto 5px;position:relative}.stb.seen .rg{background:#3a3f4d}.stb.add .rg{background:#2a2d3a}
+.stb .in{width:100%;height:100%;border-radius:50%;border:3px solid var(--bg);background:linear-gradient(135deg,#b8ff4a,#159b91) center/cover;display:grid;place-items:center;font-weight:900;color:#10140b;font-size:22px;box-sizing:border-box}.stb small{display:block;font-size:11px;color:#cfd2dc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stb .pl{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;background:#b8ff4a;color:#10140b;display:grid;place-items:center;border:2px solid var(--bg);font-weight:900;font-size:15px;line-height:1}
+.stv{position:absolute;inset:0;z-index:60;background:#000;display:none;flex-direction:column}.stv.show{display:flex}.stv-bars{display:flex;gap:4px;padding:12px 12px 6px}.stv-bars i{flex:1;height:3px;border-radius:3px;background:#ffffff44;overflow:hidden;display:block}.stv-bars i b{display:block;height:100%;width:0;background:#fff}
+.stv-top{display:flex;align-items:center;gap:10px;padding:6px 12px;color:#fff}.stv-top .in{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#159b91) center/cover;display:grid;place-items:center;font-weight:900;color:#10140b;flex:none}.stv-top .tx{flex:1;min-width:0}.stv-top .tx b{display:block;font-size:15px}.stv-top .tx small{color:#cfd2dc;font-size:12px}.stv-top button{width:40px;height:40px;border-radius:50%;background:#ffffff22;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:800}
+.stv-m{flex:1;position:relative;display:grid;place-items:center;overflow:hidden}.stv-m img,.stv-m video{max-width:100%;max-height:100%;object-fit:contain}.stv-m .zl,.stv-m .zr{position:absolute;top:0;bottom:0;z-index:2}.stv-m .zl{left:0;width:32%}.stv-m .zr{right:0;width:68%}.stv-cap{position:absolute;left:0;right:0;bottom:0;padding:40px 18px calc(22px + env(safe-area-inset-bottom));background:linear-gradient(transparent,#000c);color:#fff;font-size:16px;text-align:center;z-index:1}
+.sta{position:absolute;inset:0;z-index:59;background:#07080c;display:none;flex-direction:column}.sta.show{display:flex}.sta-pv{flex:1;display:grid;place-items:center;overflow:hidden;padding:10px}.sta-pv img,.sta-pv video{max-width:100%;max-height:100%;border-radius:16px}.sta-bt{padding:12px 16px calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}.sta-bt input{background:#14161d;border:1px solid #2a2d3a;border-radius:14px;padding:13px;color:#fff;font-size:15px;outline:0}
+.sta-pick{flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:20px}.sta-pick button{display:flex;align-items:center;gap:14px;background:#14161d;color:#fff;border-radius:18px;padding:18px;font-weight:800;font-size:16px;text-align:left;width:100%}.sta-pick small{display:block;color:#9aa0b0;font-weight:500;font-size:13px;margin-top:3px}`;
+  document.head.append(pcss);
+  const PEN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>';
+  const PLUS = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  const head = $('#profile .profile-head'), pb = document.createElement('div'); pb.className = 'pf-banner'; pb.id = 'pfBanner';
+  pb.innerHTML = '<button type="button" class="pf-pen" id="pfPen" aria-label="Edit profile">' + PEN + '</button>'; head.before(pb);
+  const pav = $('#profileInitial'), ppl = document.createElement('button'); ppl.type = 'button'; ppl.className = 'pf-plus'; ppl.id = 'pfPlus'; ppl.setAttribute('aria-label', 'Add to your story'); ppl.innerHTML = PLUS; pav.append(ppl);
+  const mediaEl = (url, type) => { const m = document.createElement(type === 'video' ? 'video' : 'img'); m.src = url; if (type === 'video') { m.muted = true; m.loop = true; m.autoplay = true; m.playsInline = true; m.setAttribute('playsinline', ''); m.play && m.play().catch(() => {}); } return m; };
+  function paintProfileExtras() {
+    const on = !!state.account; pb.style.display = on ? '' : 'none'; head.style.marginTop = on ? '' : '18px';
+    ppl.style.display = on ? '' : 'none';
+    Array.from(pb.children).forEach(c => { if (c.id !== 'pfPen') c.remove(); }); if (state.bannerURL) pb.prepend(mediaEl(state.bannerURL, state.bannerType));
+    // keep the letter, but put it in a text node so the plus button stays
+    Array.from(pav.childNodes).forEach(n => { if (n.nodeType === 3) n.remove(); });
+    if (!pav.contains(ppl)) pav.append(ppl);
+    if (state.photoURL) pav.style.background = 'url("' + String(state.photoURL).replace(/"/g, '') + '") center/cover'; else { pav.style.background = ''; pav.prepend(document.createTextNode(((state.name || 'Y').trim()[0] || 'Y').toUpperCase())); }
+    pav.classList.toggle('has-story', !!(state.uid && stories.some(s => s.uid === state.uid)));
+    const av = $('#edAv'); if (av) { av.style.backgroundImage = state.photoURL ? 'url("' + state.photoURL + '")' : ''; av.textContent = state.photoURL ? '' : ((state.name || 'Y').trim()[0] || 'Y').toUpperCase(); }
+    const bn = $('#edBn'); if (bn) { bn.innerHTML = ''; if (state.bannerURL) bn.append(mediaEl(state.bannerURL, state.bannerType)); } const bd = $('#edBnDel'); if (bd) bd.style.display = state.bannerURL ? '' : 'none';
+  }
+  { const up0 = window.updateProfile; window.updateProfile = function () { const r = up0.apply(this, arguments); paintProfileExtras(); return r; }; }
+  window.CINX && (CINX.paintAvatar = url => { state.photoURL = url; paintProfileExtras(); });
+  // edit sheet: profile photo + banner
+  { const sheet = $('#editModal .sheet'), first = sheet.querySelector('.formrow');
+    const w = document.createElement('div'); w.innerHTML = '<div class="ed-media"><div class="ed-av" id="edAv"></div><div class="tx"><b>Profile photo</b><small>Shows on your profile, stories and QR code</small></div><button type="button" id="edAvBtn">Change</button></div><div class="ed-media"><div class="ed-bn" id="edBn"></div><div class="tx"><b>Banner</b><small>A photo or a short video (up to 15 seconds)</small></div><button type="button" id="edBnBtn">Change</button></div><button type="button" class="ed-link" id="edBnDel">Remove banner</button><input type="file" id="fileAv" accept="image/*" hidden><input type="file" id="fileBn" accept="image/*,video/*" hidden>';
+    while (w.firstChild) first.before(w.firstChild);
+    $('#edAvBtn').onclick = () => $('#fileAv').click(); $('#edBnBtn').onclick = () => $('#fileBn').click();
+    const squareJpeg = async (file, size) => { const bmp = await createImageBitmap(file), s = Math.min(bmp.width, bmp.height), c = document.createElement('canvas'); c.width = c.height = size; c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size); return new Promise(r => c.toBlob(r, 'image/jpeg', .86)); };
+    const videoLen = f => new Promise(res => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => { res(v.duration); URL.revokeObjectURL(v.src); }; v.onerror = () => res(0); v.src = URL.createObjectURL(f); });
+    $('#fileAv').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const b = $('#edAvBtn'); b.disabled = true; b.textContent = 'Uploading...';
+      try { const blob = await squareJpeg(f, 512); state.photoURL = await CIN.setAvatar(new File([blob], 'avatar.jpg', { type: 'image/jpeg' })); paintProfileExtras(); toast('Profile photo updated'); } catch (x) { toast('Could not upload the photo. Try again.'); } b.disabled = false; b.textContent = 'Change'; };
+    $('#fileBn').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const b = $('#edBnBtn');
+      const isV = /^video\//.test(f.type); if (isV) { const d = await videoLen(f); if (d > 15.5) { toast('Banner videos can be up to 15 seconds'); return; } }
+      b.disabled = true; b.textContent = 'Uploading...';
+      try { const r = await CIN.setBanner(f, pc => { b.textContent = pc + '%'; }); state.bannerURL = r.url; state.bannerType = r.type; paintProfileExtras(); toast('Banner updated'); } catch (x) { toast(/too big/i.test(String(x.message)) ? x.message : 'Could not upload the banner. Try again.'); } b.disabled = false; b.textContent = 'Change'; };
+    $('#edBnDel').onclick = async () => { try { await CIN.removeBanner(); state.bannerURL = ''; state.bannerType = ''; paintProfileExtras(); toast('Banner removed'); } catch (x) { toast('Could not remove it'); } };
+  }
+  $('#pfPen').onclick = () => { if (!state.account) { gate(null); return; } paintProfileExtras(); $('#editModal').classList.add('show'); };
+
+  // ----- stories -----
+  let stories = [], seen = new Set(J('cin_seen', '[]')), pcache = {};
+  const markSeen = id => { if (seen.has(id)) return; seen.add(id); S('cin_seen', Array.from(seen).slice(-300)); };
+  async function loadStories() { try { stories = await CIN.listStories(); } catch (e) { stories = []; } paintTray(); paintProfileExtras(); }
+  const trayHost = document.createElement('div'); trayHost.className = 'stt'; trayHost.id = 'stTray'; $('#discover .searchbox').before(trayHost);
+  const circle = (el, url, name) => { el.style.backgroundImage = url ? 'url("' + url + '")' : ''; el.textContent = url ? '' : ((name || '?')[0] || '?').toUpperCase(); };
+  async function photoOf(uid) { if (uid === state.uid) return state.photoURL || ''; if (pcache[uid] === undefined) { pcache[uid] = ''; try { const p = await CIN.getProfile(uid); pcache[uid] = (p && p.photoURL) || ''; } catch (e) {} } return pcache[uid]; }
+  function paintTray() {
+    trayHost.innerHTML = ''; const byUser = new Map(); stories.forEach(s => { if (!byUser.has(s.uid)) byUser.set(s.uid, []); byUser.get(s.uid).push(s); });
+    const mk = (cls, name, label, onclick) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'stb ' + cls; b.innerHTML = '<div class="rg"><div class="in"></div></div><small></small>'; b.querySelector('small').textContent = label; b.onclick = onclick; trayHost.append(b); return b; };
+    const mine = byUser.get(state.uid), my = mk(mine ? '' : 'add', state.name, 'Your story', () => { if (!state.account) { gate(null); return; } mine ? openViewer(state.uid) : openAdd(); });
+    circle(my.querySelector('.in'), state.photoURL, state.name); if (!mine) { const pl = document.createElement('span'); pl.className = 'pl'; pl.textContent = '+'; my.querySelector('.rg').append(pl); }
+    byUser.forEach((items, uid) => { if (uid === state.uid) return; const allSeen = items.every(i => seen.has(i.id)); const b = mk(allSeen ? 'seen' : '', items[0].name, items[0].handle, () => openViewer(uid)); circle(b.querySelector('.in'), '', items[0].name); photoOf(uid).then(u => u && circle(b.querySelector('.in'), u, items[0].name)); });
+  }
+  // viewer
+  const stv = document.createElement('div'); stv.className = 'stv'; stv.id = 'stv';
+  stv.innerHTML = '<div class="stv-bars" id="stvBars"></div><div class="stv-top"><div class="in" id="stvAv"></div><div class="tx"><b id="stvName"></b><small id="stvTime"></small></div><button type="button" id="stvDel" style="display:none;width:auto;padding:0 14px;border-radius:20px">Delete</button><button type="button" id="stvX" aria-label="Close">' + CI.svg('close', 20) + '</button></div><div class="stv-m" id="stvM"><div class="zl" id="stvL"></div><div class="zr" id="stvR"></div></div>';
+  $('.app').append(stv);
+  let groups = [], gi = 0, si = 0, tm = null;
+  const stClose = () => { clearTimeout(tm); stv.classList.remove('show'); const m = $('#stvM .mm'); if (m) m.remove(); paintTray(); };
+  function openViewer(uid) { const by = new Map(); stories.forEach(s => { if (!by.has(s.uid)) by.set(s.uid, []); by.get(s.uid).push(s); }); groups = [by.get(uid)].concat(Array.from(by.entries()).filter(([u]) => u !== uid).map(([, v]) => v)).filter(Boolean); gi = 0; si = 0; if (!groups.length) return; stv.classList.add('show'); stShow(); }
+  function stNext() { si++; if (si >= groups[gi].length) { gi++; si = 0; if (gi >= groups.length) { stClose(); return; } } stShow(); }
+  function stPrev() { if (si > 0) si--; else if (gi > 0) { gi--; si = groups[gi].length - 1; } stShow(); }
+  function stShow() {
+    clearTimeout(tm); const g = groups[gi], s = g[si]; markSeen(s.id);
+    const bars = $('#stvBars'); bars.innerHTML = ''; g.forEach((x, i) => { const bi = document.createElement('i'), bb = document.createElement('b'); bb.style.width = i < si ? '100%' : '0'; bi.append(bb); bars.append(bi); });
+    const fill = ms => { const bb = bars.children[si].firstChild; bb.style.transition = 'none'; bb.style.width = '0'; void bb.offsetWidth; bb.style.transition = 'width ' + ms + 'ms linear'; bb.style.width = '100%'; };
+    circle($('#stvAv'), '', s.name); photoOf(s.uid).then(u => u && circle($('#stvAv'), u, s.name)); $('#stvName').textContent = s.handle || s.name; const mins = s.createdAt && s.createdAt.seconds ? Math.floor((Date.now() / 1000 - s.createdAt.seconds) / 60) : 0; $('#stvTime').textContent = mins < 1 ? 'Just now' : mins < 60 ? mins + ' min ago' : Math.floor(mins / 60) + ' h ago';
+    $('#stvDel').style.display = s.uid === state.uid ? '' : 'none';
+    const M = $('#stvM'); const old = M.querySelector('.mm'); if (old) old.remove(); const wrap = document.createElement('div'); wrap.className = 'mm'; wrap.style.cssText = 'display:grid;place-items:center;width:100%;height:100%';
+    if (s.type === 'video') { const v = document.createElement('video'); v.src = s.url; v.playsInline = true; v.setAttribute('playsinline', ''); v.onloadedmetadata = () => fill((v.duration || 8) * 1000); v.onended = stNext; v.onerror = stNext; wrap.append(v); v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); }
+    else { const im = document.createElement('img'); im.src = s.url; wrap.append(im); fill(5000); tm = setTimeout(stNext, 5000); }
+    if (s.caption) { const c = document.createElement('div'); c.className = 'stv-cap'; c.textContent = s.caption; wrap.append(c); }
+    M.prepend(wrap);
+  }
+  $('#stvR').onclick = stNext; $('#stvL').onclick = stPrev; $('#stvX').onclick = stClose;
+  $('#stvDel').onclick = async () => { const s = groups[gi][si]; if (!confirm('Delete this story?')) return; try { await CIN.deleteStory(s.id); stories = stories.filter(x => x.id !== s.id); groups[gi].splice(si, 1); toast('Story deleted'); if (!groups[gi].length) { groups.splice(gi, 1); si = 0; if (gi >= groups.length) { stClose(); paintTray(); paintProfileExtras(); return; } } else if (si >= groups[gi].length) si = groups[gi].length - 1; paintProfileExtras(); stShow(); } catch (e) { toast('Could not delete it'); } };
+  // add a story
+  const sta = document.createElement('div'); sta.className = 'sta'; sta.id = 'sta';
+  sta.innerHTML = '<div class="stv-top" style="padding:14px 12px"><button type="button" id="staX" aria-label="Close">' + CI.svg('close', 20) + '</button><div class="tx"><b>Add to your story</b><small>Disappears after 24 hours</small></div></div><div class="sta-pick" id="staPick"><button type="button" id="staCam"><span>' + CI.svg('camera', 26) + '</span><span>Camera<small>Take a photo or video now</small></span></button><button type="button" id="staGal"><span>' + CI.svg('image', 26) + '</span><span>Gallery<small>Choose a photo or video (video up to 30 seconds)</small></span></button></div><div class="sta-pv" id="staPv" style="display:none"></div><div class="sta-bt" id="staBt" style="display:none"><input id="staCap" maxlength="80" placeholder="Add a caption (optional)"><button type="button" class="primary" id="staGo">Share to story</button></div><input type="file" id="fileStC" accept="image/*,video/*" capture hidden><input type="file" id="fileStG" accept="image/*,video/*" hidden>';
+  $('.app').append(sta);
+  let stFile = null;
+  const staReset = () => { stFile = null; $('#staPick').style.display = ''; $('#staPv').style.display = 'none'; $('#staBt').style.display = 'none'; $('#staPv').innerHTML = ''; $('#staCap').value = ''; };
+  function openAdd() { if (!state.account) { gate(null); return; } staReset(); sta.classList.add('show'); }
+  $('#staX').onclick = () => sta.classList.remove('show'); $('#staCam').onclick = () => $('#fileStC').click(); $('#staGal').onclick = () => $('#fileStG').click();
+  async function staPicked(e) { const f = e.target.files[0]; e.target.value = ''; if (!f) return; const isV = /^video\//.test(f.type) || /\.(mp4|webm|mov|3gp|mkv)$/i.test(f.name);
+    if (isV) { const d = await new Promise(res => { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => { res(v.duration); URL.revokeObjectURL(v.src); }; v.onerror = () => res(0); v.src = URL.createObjectURL(f); }); if (d > 30.5) { toast('Story videos can be up to 30 seconds'); return; } if (f.size > 25 * 1024 * 1024) { toast('That video is too big. Use one under 25 MB.'); return; } }
+    stFile = f; const pv = $('#staPv'); pv.innerHTML = ''; const m = document.createElement(isV ? 'video' : 'img'); m.src = URL.createObjectURL(f); if (isV) { m.controls = true; m.muted = true; m.playsInline = true; } pv.append(m); pv.style.display = ''; $('#staPick').style.display = 'none'; $('#staBt').style.display = ''; }
+  $('#fileStC').onchange = staPicked; $('#fileStG').onchange = staPicked;
+  $('#staGo').onclick = async () => { if (!stFile) return; const b = $('#staGo'); b.disabled = true; b.textContent = 'Sharing...';
+    try { await CIN.postStory(stFile, $('#staCap').value.trim(), pc => { b.textContent = 'Sharing ' + pc + '%'; }); sta.classList.remove('show'); toast('Story shared'); await loadStories(); }
+    catch (x) { toast(/too big/i.test(String(x.message)) ? x.message : /permission/i.test(String(x.code || x.message)) ? 'Firebase blocked this. Publish the new Firestore rules.' : 'Could not share. Try again.'); }
+    b.disabled = false; b.textContent = 'Share to story'; };
+  $('#pfPlus').onclick = e => { e.stopPropagation(); openAdd(); };
+  pav.addEventListener('click', e => { if (e.target.closest('#pfPlus')) return; if (state.account && stories.some(s => s.uid === state.uid)) openViewer(state.uid); });
+  $$('.nav[data-screen=discover]').forEach(b => b.addEventListener('click', () => loadStories()));
+  setInterval(() => { if (state.account && !stv.classList.contains('show')) loadStories(); }, 120000);
 
   // ---------- Start ----------
   let first = true;

@@ -88,6 +88,30 @@ export const CIN = {
     return up.secure_url;
   },
 
+  // ---------- Profile banner (photo or short looping video) ----------
+  async setBanner(file, onProgress) {
+    const uid = me(), isVid = /^video\//.test(file.type) || /\.(mp4|webm|mov|3gp|mkv)$/i.test(file.name);
+    if (file.size > 12 * 1024 * 1024 && isVid) throw new Error("Banner video is too big. Use one under 12 MB.");
+    const f = isVid ? file : await shrinkImage(file), up = await cldUpload(f, isVid ? "video" : "image", onProgress);
+    await updateDoc(doc(db, "users", uid), { bannerURL: up.secure_url, bannerType: isVid ? "video" : "image" });
+    return { url: up.secure_url, type: isVid ? "video" : "image" };
+  },
+  removeBanner: () => updateDoc(doc(db, "users", me()), { bannerURL: "", bannerType: "" }),
+
+  // ---------- Stories (photo or short video that disappears after 24 hours) ----------
+  async postStory(file, caption, onProgress) {
+    const uid = me(), isVid = /^video\//.test(file.type) || /\.(mp4|webm|mov|3gp|mkv)$/i.test(file.name);
+    if (isVid && file.size > 25 * 1024 * 1024) throw new Error("That video is too big for a story. Use one under 25 MB.");
+    const p = await CIN.getProfile(uid), f = isVid ? file : await shrinkImage(file), up = await cldUpload(f, isVid ? "video" : "image", onProgress);
+    return addDoc(collection(db, "stories"), { uid, handle: p.handle, name: p.name, type: isVid ? "video" : "image", url: up.secure_url,
+      photoURL: p.photoURL || "", caption: String(caption || "").slice(0, 80), createdAt: serverTimestamp(), expiresAt: new Date(Date.now() + 24 * 3600 * 1000) });
+  },
+  async listStories() {
+    const s = await getDocs(query(collection(db, "stories"), where("expiresAt", ">", new Date()), limit(120)));
+    return s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => ((a.createdAt && a.createdAt.seconds) || 9e9) - ((b.createdAt && b.createdAt.seconds) || 9e9));
+  },
+  deleteStory: (id) => deleteDoc(doc(db, "stories", id)),
+
   // ---------- Videos ----------
   // onProgress(0..100) is optional. Returns the new video id.
   async publishVideo(file, { caption = "", tags = [], music = "off", musicFile = null, musicTrack = null, videoVol = 1, musicVol = 0.7, kind = "video" } = {}, onProgress) {
