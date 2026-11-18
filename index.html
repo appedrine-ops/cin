@@ -6,10 +6,15 @@
 <meta name="theme-color" content="#08090d">
 <meta name="referrer" content="no-referrer">
 <!-- Security: blocks outside scripts, trackers and network calls. When you add Firebase, allow its hosts in script-src and connect-src. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://*.jamendo.com; media-src 'self' blob: https://res.cloudinary.com https://*.jamendo.com; font-src 'self' data:; connect-src 'self' https://api.cloudinary.com https://api.jamendo.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; manifest-src 'self'; worker-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://*.jamendo.com; media-src 'self' blob: https://res.cloudinary.com https://*.jamendo.com; font-src 'self' data:; connect-src 'self' https://api.cloudinary.com https://api.jamendo.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <link rel="icon" href="logo.png">
-<script src="cin-config.js?v=21"></script><script src="cin-icons.js?v=21"></script>
-<script src="cin-qr.js?v=21"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CIN">
+<script src="cin-config.js?v=22"></script><script src="cin-icons.js?v=22"></script>
+<script src="cin-qr.js?v=22"></script>
 <title>CIN — Create. Inspire. Network.</title>
 <style>
 :root{--bg:#08090d;--panel:#11131a;--panel2:#191c25;--text:#f7f7fb;--muted:#9da2b1;--accent:#b8ff4a;--pink:#ff4f91;--line:#292d39}
@@ -195,9 +200,9 @@ const SET_UI=[['Account',[['a','edit','Edit profile','Name and username'],['a','
 ['Notifications',[['t','nLikes','Likes','Show a message when someone likes your post'],['t','nComments','Comments','Show a message when someone comments'],['t','nCollabs','Collab requests','Show a message for new collab requests']]],
 ['Privacy',[['a','postprivacy','Who sees my posts','Set for each post: Everyone, Friends or Only you'],['a','privacy','Privacy and data','What CIN stores about you']]],
 ['Security',[['a','secinfo','Security checkup','What protects your account']]],
-['Support',[['a','help','Help and feedback','Answers, report a problem, send an idea'],['a','rules','Community guidelines','What is and is not allowed'],['a','delacct','Delete my account','Permanently removes your profile and posts'],['a','clear','Clear data on this device','Removes saved likes, comments and settings'],['a','about','About CIN','Version, who runs it']]]];
+['Support',[['a','install','Install CIN app','Add CIN to your home screen like a real app'],['a','help','Help and feedback','Answers, report a problem, send an idea'],['a','rules','Community guidelines','What is and is not allowed'],['a','delacct','Delete my account','Permanently removes your profile and posts'],['a','clear','Clear data on this device','Removes saved likes, comments and settings'],['a','about','About CIN','Version, who runs it']]]];
 function setSetting(k,v){state.settings[k]=v;save('cin_settings',state.settings);if(k==='music'){musicPick=v;paintMusic();}state.muted=!state.settings.sound;$$('video').forEach(x=>{x.muted=state.muted;x.preload=state.settings.dataSaver?'none':'auto';if(!canAutoplay())x.pause();});}
-function settingAction(k){if(k==='edit')$('#editModal').classList.add('show');else if(k==='auth'){if(state.account){state.account=false;localStorage.removeItem('cin_account');paintAccount();renderSettings();toast('Logged out. You can keep watching.');}else gate(()=>renderSettings());}else if(k==='clear'){if(confirm('Remove all CIN data saved on this device?')){localStorage.clear();location.reload();}}else if(k==='secinfo')securityInfo();else if(k==='verifyreq'){window.menuAction('verify');}else if(k==='switch'||k==='delacct'){if(window.CINacct)window.CINacct(k);else toast('Sign in first');}else if(k==='postprivacy')showInfo('Who sees my posts',['Every post has its own privacy.','1. Open Profile and tap one of your posts.','2. Tap Privacy settings.','3. Choose Everyone, Friends or Only you.','Posts set to Only you show a lock on your profile and only you can see them. Friends means people you follow who also follow you back.']);else if(k==='help'||k==='rules'||k==='privacy'||k==='about'){if(window.CINhelp)window.CINhelp(k);else showInfo('Help',['Sign in to CIN with the cloud connected to use Help and feedback.']);}else toast('CIN');}
+function settingAction(k){if(k==='edit')$('#editModal').classList.add('show');else if(k==='auth'){if(state.account){state.account=false;localStorage.removeItem('cin_account');paintAccount();renderSettings();toast('Logged out. You can keep watching.');}else gate(()=>renderSettings());}else if(k==='clear'){if(confirm('Remove all CIN data saved on this device?')){localStorage.clear();location.reload();}}else if(k==='secinfo')securityInfo();else if(k==='install'){window.CINinstall();}else if(k==='verifyreq'){window.menuAction('verify');}else if(k==='switch'||k==='delacct'){if(window.CINacct)window.CINacct(k);else toast('Sign in first');}else if(k==='postprivacy')showInfo('Who sees my posts',['Every post has its own privacy.','1. Open Profile and tap one of your posts.','2. Tap Privacy settings.','3. Choose Everyone, Friends or Only you.','Posts set to Only you show a lock on your profile and only you can see them. Friends means people you follow who also follow you back.']);else if(k==='help'||k==='rules'||k==='privacy'||k==='about'){if(window.CINhelp)window.CINhelp(k);else showInfo('Help',['Sign in to CIN with the cloud connected to use Help and feedback.']);}else toast('CIN');}
 function renderSettings(){const box=$('#settingsBody');box.innerHTML='';SET_UI.forEach(([g,items])=>{const h=document.createElement('h3');h.textContent=g;const card=document.createElement('div');card.className='set-card';items.forEach(([t,k,title,desc,opts])=>{const row=document.createElement(t==='t'?'label':t==='a'?'button':'div');row.className='set-row';const lab=document.createElement('span'),b=document.createElement('b'),sm=document.createElement('small');if(k==='auth'){b.textContent=state.account?'Log out':'Join CIN';sm.textContent=state.account?'@'+state.handle:'Create a free account';}else{b.textContent=title;sm.textContent=desc;}lab.append(b,sm);row.append(lab);
 if(t==='t'){const inp=document.createElement('input');inp.type='checkbox';inp.className='sw';inp.checked=!!state.settings[k];inp.onchange=()=>setSetting(k,inp.checked);row.append(inp);}
 else if(t==='c'){row.className='set-row col';const o=document.createElement('div');o.className='opts';opts.forEach(v=>{const x=document.createElement('button');x.textContent=v[0].toUpperCase()+v.slice(1);x.className=state.settings[k]===v?'on':'';x.onclick=()=>{setSetting(k,v);renderSettings();};o.append(x);});row.append(o);}
@@ -218,15 +223,40 @@ add('Copy link','link','#18c8c0',()=>{const t=d.url||d.text,ok=()=>toast('Link c
 $('#shareNote').textContent=!d.url?'Put CIN online, for example on GitHub Pages, so shared links open the app.':(id&&id.startsWith('local-')?'This video is only on your device until cloud publishing is on. The link opens CIN.':'');
 $('#shareReport').style.display=id?'block':'none';$('#shareModal').classList.add('show');}
 $('#shareReport').onclick=()=>{$('#shareModal').classList.remove('show');const id=shareId;showInfo('Report this video',['Why are you reporting it?'],['Spam','Harassment or bullying','Nudity or sexual content','Violence or dangerous acts','Something else'].map(r=>[r,()=>{const a=jget('cin_reports','[]');a.push({id,r,t:Date.now()});save('cin_reports',a.slice(-50));$('#infoModal').classList.remove('show');toast('Thanks. We will review this video.');}]));};
-const MENU=[['Personal tools',[['activity','Activity center'],['shareapp','Share CIN']]],['Creation tools',[['studio','CIN Studio']]],['',[['settings','Settings and privacy']]]];
+const MENU=[['Personal tools',[['activity','Activity center'],['shareapp','Share CIN'],['install','Install CIN app']]],['Creation tools',[['studio','CIN Studio']]],['',[['settings','Settings and privacy']]]];
 function closeDrawer(){$('#drawer').classList.remove('show');}
 function openDrawer(){const box=$('#drawerBody');box.innerHTML='';MENU.forEach(([g,items])=>{if(g){const h=document.createElement('h3');h.textContent=g;box.append(h);}items.forEach(([k,title,val])=>{const b=document.createElement('button');b.className='drow';const l=document.createElement('span');l.textContent=title;b.append(l);if(val){const v=document.createElement('small');v.textContent=val;b.append(v);}const i=document.createElement('i');i.textContent='›';b.append(i);b.onclick=()=>menuAction(k);box.append(b);});});$('#drawer').classList.add('show');}
-function menuAction(k){closeDrawer();if(k==='wallet')showInfo('Wallet',['Balance: UGX 0','Mobile Money tips and payouts (MTN and Airtel) will be available once the CIN backend is connected.']);else if(k==='activity')navigate('inbox');else if(k==='shareapp')openShare(null);else if(k==='settings'){renderSettings();navigate('settings');}else if(k==='studio'){const likes=state.liked.length,comments=Object.values(state.comments).reduce((a,b)=>a+b.length,0),score=likes+comments*2+state.posts*5;let lv=LEVELS[0][0];LEVELS.forEach(l=>{if(score>=l[1])lv=l[0];});showInfo('CIN Studio',['Videos posted: '+state.posts,'Likes given: '+likes,'Comments written: '+comments,'Pulse score: '+score+' ('+lv+')','Real views, followers and earnings will appear here once videos are published to the cloud.'],[['Create a video',()=>{$('#infoModal').classList.remove('show');navigate('upload');}]]);}}
+function menuAction(k){closeDrawer();if(k==='install'){window.CINinstall();return;}if(k==='wallet')showInfo('Wallet',['Balance: UGX 0','Mobile Money tips and payouts (MTN and Airtel) will be available once the CIN backend is connected.']);else if(k==='activity')navigate('inbox');else if(k==='shareapp')openShare(null);else if(k==='settings'){renderSettings();navigate('settings');}else if(k==='studio'){const likes=state.liked.length,comments=Object.values(state.comments).reduce((a,b)=>a+b.length,0),score=likes+comments*2+state.posts*5;let lv=LEVELS[0][0];LEVELS.forEach(l=>{if(score>=l[1])lv=l[0];});showInfo('CIN Studio',['Videos posted: '+state.posts,'Likes given: '+likes,'Comments written: '+comments,'Pulse score: '+score+' ('+lv+')','Real views, followers and earnings will appear here once videos are published to the cloud.'],[['Create a video',()=>{$('#infoModal').classList.remove('show');navigate('upload');}]]);}}
 $('#drawerBg').onclick=closeDrawer;$('#drawerClose').onclick=closeDrawer;
 updateProfile();syncLikes();renderHub();paintAccount();paintMusic();{const h=decodeURIComponent(location.hash.slice(1)),t=h&&$('.clip[data-id="'+CSS.escape(h)+'"]');if(t)setTimeout(()=>t.scrollIntoView(),150);}$('#followingCount').textContent=state.following.length;$$('.clip').forEach(c=>{setupVideo(c);addFollow(c);setupInfo(c);});renderPeople();
 </script>
 <script>setTimeout(function(){var s=document.getElementById("splash");if(s){s.classList.add("hide");setTimeout(function(){s.remove()},400)}},1200)</script>
-<script src="cin-extras.js?v=21"></script>
-<script src="cin-editor.js?v=21"></script>
-<script type="module" src="cin-cloud.js?v=21"></script><script type="module" src="cin-live.js?v=21"></script>
+<script src="cin-extras.js?v=22"></script>
+<script src="cin-editor.js?v=22"></script>
+<script type="module" src="cin-cloud.js?v=22"></script><script type="module" src="cin-live.js?v=22"></script>
+
+<script>
+(function(){
+  var deferred=null, standalone=function(){return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;};
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;showBar();});
+  window.addEventListener('appinstalled',function(){deferred=null;hideBar();toast('CIN is installed. Open it from your home screen.');});
+  window.CINinstall=function(){
+    if(standalone()){toast('CIN is already installed');return;}
+    if(deferred){deferred.prompt();deferred.userChoice.then(function(){deferred=null;hideBar();});return;}
+    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    showInfo('Install CIN',ios?['1. Open this page in Safari.','2. Tap the Share button.','3. Tap Add to Home Screen.','4. Tap Add. CIN now opens like an app.']:['1. Tap the three dots at the top right of your browser.','2. Tap Install app, or Add to Home screen.','3. Tap Install.','CIN then opens from your home screen like an app, with no address bar.','If you do not see it, open this page in Chrome or Samsung Internet.']);
+  };
+  function bar(){var b=document.getElementById('instBar');if(b)return b;b=document.createElement('div');b.id='instBar';
+    b.style.cssText='position:absolute;left:12px;right:12px;bottom:78px;z-index:50;background:#14161d;border:1px solid #2a2d3a;border-radius:18px;padding:12px 14px;display:none;align-items:center;gap:12px;box-shadow:0 8px 30px #000a';
+    b.innerHTML='<img src="icon-192.png" width="40" height="40" style="border-radius:10px" alt=""><div style="flex:1;min-width:0"><b style="display:block;font-size:15px">Install CIN</b><span style="color:#9aa0b0;font-size:12px">Open it like a real app from your home screen</span></div><button type="button" id="instYes" style="background:#b8ff4a;color:#10140b;font-weight:800;border-radius:16px;padding:10px 16px">Install</button><button type="button" id="instNo" aria-label="Not now" style="background:none;color:#9aa0b0;font-size:22px;padding:0 4px">&times;</button>';
+    (document.querySelector('.app')||document.body).appendChild(b);
+    document.getElementById('instYes').onclick=function(){window.CINinstall();};
+    document.getElementById('instNo').onclick=function(){try{localStorage.setItem('cin_inst_no',String(Date.now()));}catch(e){}hideBar();};return b;}
+  function showBar(){if(standalone())return;var no=0;try{no=+localStorage.getItem('cin_inst_no')||0;}catch(e){}if(Date.now()-no<7*864e5)return;setTimeout(function(){if(deferred)bar().style.display='flex';},6000);}
+  function hideBar(){var b=document.getElementById('instBar');if(b)b.style.display='none';}
+  window.addEventListener('offline',function(){toast('You are offline. Some things will not load.');});
+  window.addEventListener('online',function(){toast('Back online');});
+  if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+})();
+</script>
 </body></html>
