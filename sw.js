@@ -1,6 +1,6 @@
 /* CIN service worker: keeps the app opening when the signal is weak. Code is network-first, so updates arrive right away. */
-const CACHE = 'cin-shell-v1';
-const SHELL = ['./', 'index.html', 'logo.png', 'icon-192.png', 'manifest.webmanifest'];
+const CACHE = 'cin-shell-v2';
+const SHELL = ['./', 'index.html', 'logo.png', 'logo-clear.png', 'icon-192.png', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {}).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

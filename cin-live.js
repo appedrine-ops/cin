@@ -1,5 +1,5 @@
 // CIN LIVE: phone-to-phone live video (WebRTC). Firestore carries only the handshake and the chat.
-import { CIN } from "./cin-backend.js?v=22";
+import { CIN } from "./cin-backend.js?v=23";
 if (CIN.configured) {
   const X = window.CINX || {};
   const userTurn = window.CIN_CONFIG && window.CIN_CONFIG.turn;

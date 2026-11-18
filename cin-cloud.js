@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=22";
+import { CIN } from "./cin-backend.js?v=23";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
