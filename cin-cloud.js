@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=26";
+import { CIN } from "./cin-backend.js?v=27";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -168,7 +168,7 @@ if (CIN.configured) {
     const list = $('#admList'); list.innerHTML = '<div class="adm-h">Loading...</div>';
     try {
       const items = await CIN.listLog(); list.innerHTML = items.length ? '<div class="adm-h">Last actions. This log cannot be edited.</div>' : '<div class="adm-h">Nothing yet.</div>';
-      const AC = { give: 'gave', approve: 'approved', remove: 'removed the tick from', reject: 'rejected' };
+      const AC = { give: 'gave', approve: 'approved', remove: 'removed the tick from', reject: 'rejected', rename: 'renamed' };
       items.forEach(e => {
         const r = document.createElement('div'); r.className = 'adm-row'; r.style.cssText = 'flex-direction:column;align-items:flex-start;gap:3px';
         const d = e.at && e.at.seconds ? new Date(e.at.seconds * 1000).toLocaleString() : 'just now';
@@ -185,6 +185,16 @@ if (CIN.configured) {
     r.querySelector('b').textContent = '@' + u.handle; if (cur) r.querySelector('b').append(badgeEl(cur));
     r.querySelector('.t > span').textContent = u.name || '';
     const box = r.querySelector('.adm-tiers');
+    const rn = document.createElement('button'); rn.type = 'button'; rn.textContent = 'Change name'; rn.style.cssText = 'width:100%;padding:9px 0;border-radius:18px;font-weight:800;font-size:13px;color:#10140b;background:#b8ff4a;border:0';
+    rn.onclick = async () => {
+      const n = prompt('New display name for @' + u.handle + ' (max 30 letters):', u.name || ''); if (n === null) return;
+      const nn = n.trim().slice(0, 30); if (!nn || nn === u.name) return;
+      const why = prompt('Reason (saved in the log):', ''); if (why === null) return;
+      rn.disabled = true;
+      try { await CIN.adminRename(u.id, nn, { handle: u.handle, note: why }); u.name = nn; if (u.id === state.uid) { state.name = nn; updateProfile(); } r.replaceWith(admRow(u)); toast('Name changed to ' + nn); }
+      catch (e) { rn.disabled = false; toast('Firebase blocked this. Publish the new Firestore rules.'); }
+    };
+    box.append(rn);
     [['blue', 'Blue', '#1d9bf0'], ['red', 'Red', '#ff3b30'], ['green', 'Green', '#1fb455'], ['gold', 'Gold', '#f5b301'], ['purple', 'Purple', '#8b5cf6'], ['', 'None', '#3a3f4d']].forEach(([t, label, col]) => {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
       b.style.cssText = 'flex:1 1 30%;padding:9px 0;border-radius:18px;font-weight:800;font-size:13px;color:#fff;background:' + (cur === t ? col : '#1d2029') + ';border:2px solid ' + col;
@@ -926,6 +936,48 @@ if (CIN.configured) {
   $('#qrCopy').onclick = async () => { const t = profLink(state.handle); try { await navigator.clipboard.writeText(t); toast('Link copied'); } catch (e) { const a = document.createElement('textarea'); a.value = t; document.body.append(a); a.select(); try { document.execCommand('copy'); toast('Link copied'); } catch (x) { toast(t); } a.remove(); } };
   $('#qrShare').onclick = () => { const d = { title: 'CIN', text: 'Follow me on CIN: @' + state.handle, url: profLink(state.handle) }; if (navigator.share) navigator.share(d).catch(() => {}); else $('#qrCopy').click(); };
   $('#qrSave').onclick = () => { $('#qrCanvas').toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'cin-qr-' + state.handle + '.png'; document.body.append(a); a.click(); a.remove(); toast('QR image saved'); }); };
+
+  // ---------- Analytics (creator numbers, colourful) ----------
+  { const acss = document.createElement('style');
+    acss.textContent = `.anl{position:absolute;inset:0;z-index:37;background:#08090d;display:none;overflow:auto;padding:14px 18px calc(24px + env(safe-area-inset-bottom))}.anl.show{display:block}.anl .ax{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center}.anl h1{font-size:30px;margin:10px 0 2px}.anl .as{color:#9da2b1;font-size:13px;margin-bottom:16px}.anl .ag{display:grid;grid-template-columns:1fr 1fr;gap:10px}.anl .ac{border-radius:18px;padding:16px 14px;color:#10140b}.anl .ac b{display:block;font-size:30px;font-weight:900;line-height:1.1}.anl .ac span{font-size:12px;font-weight:800;opacity:.8}.anl h2{font-size:16px;margin:22px 0 10px}.anl .bars{display:flex;align-items:flex-end;gap:8px;height:130px;background:#11131a;border-radius:18px;padding:14px 12px 10px}.anl .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;gap:5px;font-size:10px;color:#9da2b1}.anl .bar i{display:block;width:100%;min-height:4px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,#ff4f91,#8b5cf6)}.anl .top{display:flex;gap:12px;align-items:center;background:#11131a;border-radius:16px;padding:10px;margin-bottom:8px}.anl .top img,.anl .top .ph{width:52px;height:68px;border-radius:10px;object-fit:cover;background:linear-gradient(135deg,#8b5cf6,#ff4f91);flex:none}.anl .top div{font-size:13px}.anl .top small{display:block;color:#9da2b1;margin-top:3px}`;
+    document.head.append(acss);
+    const an = document.createElement('div'); an.className = 'anl'; an.id = 'anl';
+    an.innerHTML = '<button type="button" class="ax" id="anX" aria-label="Close">' + CI.svg('close', 22) + '</button><h1>Analytics</h1><div class="as" id="anSub"></div><div id="anBody"></div>';
+    $('.app').append(an);
+    $('#anX').onclick = () => an.classList.remove('show');
+    const CARD = [['#b8ff4a', '#7be0a0'], ['#ff4f91', '#ff9a8b'], ['#4fc3ff', '#8b5cf6'], ['#ffd34f', '#ff8a3d'], ['#8b5cf6', '#c084fc'], ['#2fb58a', '#4fc3ff']];
+    async function openAnalytics() {
+      if (!state.account) { gate(null); return; }
+      const body = $('#anBody'); body.innerHTML = '<div class="as">Loading...</div>'; $('#anSub').textContent = '@' + state.handle; an.classList.add('show');
+      try {
+        const [p, vs] = await Promise.all([CIN.getProfile(state.uid), CIN.getUserVideos(state.uid)]);
+        const likes = vs.reduce((a, v) => a + (v.likesCount || 0), 0), com = vs.reduce((a, v) => a + (v.commentsCount || 0), 0);
+        const d7 = Date.now() / 1000 - 7 * 86400, new7 = vs.filter(v => v.createdAt && v.createdAt.seconds > d7).length;
+        const stats = [['Followers', (p && p.followersCount) || 0], ['Posts', vs.length], ['Likes', likes], ['Comments', com], ['Following', (p && p.followingCount) || 0], ['Posts, last 7 days', new7]];
+        body.innerHTML = '<div class="ag"></div>';
+        stats.forEach(([l, n], i) => { const c = document.createElement('div'); c.className = 'ac'; c.style.background = 'linear-gradient(135deg,' + CARD[i][0] + ',' + CARD[i][1] + ')'; c.innerHTML = '<b></b><span></span>'; c.firstChild.textContent = n; c.lastChild.textContent = l; body.firstChild.append(c); });
+        const rec = vs.slice(0, 7).reverse(), mx = Math.max(1, ...rec.map(v => v.likesCount || 0));
+        const h2 = document.createElement('h2'); h2.textContent = 'Likes on your latest posts'; body.append(h2);
+        if (!rec.length) { const e = document.createElement('div'); e.className = 'as'; e.textContent = 'Post something and your numbers will show here.'; body.append(e); return; }
+        const bars = document.createElement('div'); bars.className = 'bars';
+        rec.forEach(v => { const b = document.createElement('div'); b.className = 'bar'; b.innerHTML = '<span></span><i></i>'; b.firstChild.textContent = v.likesCount || 0; b.lastChild.style.height = Math.max(4, Math.round(((v.likesCount || 0) / mx) * 84)) + '%'; bars.append(b); });
+        body.append(bars);
+        const h3 = document.createElement('h2'); h3.textContent = 'Top posts'; body.append(h3);
+        vs.slice().sort((a, b) => ((b.likesCount || 0) + (b.commentsCount || 0)) - ((a.likesCount || 0) + (a.commentsCount || 0))).slice(0, 3).forEach(v => {
+          const r = document.createElement('div'); r.className = 'top';
+          const th = v.photoURL || (v.videoURL ? v.videoURL.replace('/upload/', '/upload/so_0,w_120,h_160,c_fill/').replace(/\.(mp4|mov|webm)$/i, '.jpg') : '');
+          if (th) { const im = document.createElement('img'); im.alt = ''; im.src = th; im.onerror = () => { const ph = document.createElement('div'); ph.className = 'ph'; im.replaceWith(ph); }; r.append(im); } else { const ph = document.createElement('div'); ph.className = 'ph'; r.append(ph); }
+          const t = document.createElement('div'); t.textContent = (v.caption || 'No caption').slice(0, 60); const sm = document.createElement('small'); sm.textContent = (v.likesCount || 0) + ' likes  ·  ' + (v.commentsCount || 0) + ' comments'; t.append(sm); r.append(t); body.append(r);
+        });
+      } catch (e) { body.innerHTML = '<div class="as">Could not load your numbers. Check your internet and try again.</div>'; }
+    }
+    const arow = ['analytics', 'Analytics', '']; MENU[0][1].push(arow); const ma2 = window.menuAction;
+    window.menuAction = function (k) { if (k === 'analytics') { closeDrawer(); openAnalytics(); return; } return ma2.apply(this, arguments); };
+  }
+  // colourful accents on the profile numbers, tabs and menu
+  { const ccss = document.createElement('style');
+    ccss.textContent = `.stats>*:nth-child(1) strong{color:#ff4f91}.stats>*:nth-child(2) strong{color:#4fc3ff}.stats>*:nth-child(3) strong{color:#b8ff4a}.stats>*:nth-child(4) strong{color:#ffd34f}.stats{background:linear-gradient(135deg,#1b1034,#0f2a3a)}.chip{background:linear-gradient(135deg,#2a1b4a,#14344a)}.primary{background:linear-gradient(135deg,#b8ff4a,#4fe0a0)}`;
+    document.head.append(ccss); }
   // opening a profile link (someone scanned a QR code)
   const pv = document.createElement('div'); pv.className = 'qrc'; pv.id = 'pvc';
   pv.innerHTML = '<button type="button" class="qx" id="pvX" aria-label="Close">' + CI.svg('close', 22) + '</button><div class="qr-card"><div class="qr-av" id="pvAv"></div><h2 id="pvName"></h2><div class="h" id="pvHandle"></div><p id="pvBio" style="margin:0 0 12px;color:#333;font-size:14px"></p><p id="pvStat" style="margin:0 0 14px;color:#555;font-size:13px"></p><button type="button" id="pvFollow" class="primary" style="width:100%">Follow</button></div>';

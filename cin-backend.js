@@ -243,6 +243,13 @@ export const CIN = {
     b.set(doc(collection(db, "verifyLog")), { uid, handle: meta.handle || "", action: tier ? "give" : "remove", tier: tier || "", note: String(meta.note || "").slice(0, 200), by: me(), byHandle: adm.handle, at: serverTimestamp() });
     await b.commit();
   },
+  async adminRename(uid, name, meta = {}) {
+    const adm = await CIN.getProfile(me()), b = writeBatch(db), n = String(name || "").trim().slice(0, 30);
+    if (!n) throw new Error("empty");
+    b.update(doc(db, "users", uid), { name: n });
+    b.set(doc(collection(db, "verifyLog")), { uid, handle: meta.handle || "", action: "rename", tier: "", note: String(meta.note || "").slice(0, 200), by: me(), byHandle: adm.handle, at: serverTimestamp() });
+    await b.commit();
+  },
   async listLog() { const s = await getDocs(query(collection(db, "verifyLog"), orderBy("at", "desc"), limit(40))); return s.docs.map(d => d.data()); },
 
   // ---- applications: a member asks, only an admin decides ----
