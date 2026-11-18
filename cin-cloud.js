@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=23";
+import { CIN } from "./cin-backend.js?v=25";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1067,6 +1067,6 @@ if (CIN.configured) {
     if (user) { await loadAccount(user); if (!sessionStorage.getItem('cin_sess')) { sessionStorage.setItem('cin_sess', '1'); logAcct('Signed in'); } const lt = localStorage.getItem('cin_lasttier_' + user.uid); if ((lt || '') !== (state.tier || '')) { if (lt !== null || state.tier) logAcct(state.tier ? 'Verified: ' + state.tier + ' tick' : 'Tick removed'); localStorage.setItem('cin_lasttier_' + user.uid, state.tier || ''); } }
     else { state.account = false; state.uid = null; localStorage.removeItem('cin_account'); paintAccount(); }
     await loadFeed(true);
-    if (first) { first = false; const h = decodeURIComponent(location.hash.slice(1)); if (h.startsWith('u/')) openProfileLink(h.slice(2)); const t = h && !h.startsWith('u/') && clipEl(h); if (t) setTimeout(() => t.scrollIntoView(), 150); }
+    if (first) { first = false; const h = decodeURIComponent(location.hash.slice(1)); if (h.startsWith('u/')) openProfileLink(h.slice(2)); if (h === 'verify') setTimeout(() => { history.replaceState(null, '', location.pathname); window.menuAction('verify'); }, 900); const t = h && !h.startsWith('u/') && h !== 'verify' && clipEl(h); if (t) setTimeout(() => t.scrollIntoView(), 150); }
   });
 }
