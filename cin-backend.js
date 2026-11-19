@@ -289,7 +289,7 @@ export const CIN = {
   async notify(toUid, type, id, extra = {}) {
     try {
       const uid = me(); if (!toUid || toUid === uid) return;
-      const p = await CIN.getProfile(uid), data = { type, from: uid, fromHandle: p.handle, fromName: p.name || p.handle, vid: extra.vid || "", text: String(extra.text || "").slice(0, 100), read: false, createdAt: serverTimestamp() };
+      const p = await CIN.getProfile(uid), data = { type, sender: uid, fromHandle: p.handle, fromName: p.name || p.handle, vid: extra.vid || "", text: String(extra.text || "").slice(0, 100), read: false, createdAt: serverTimestamp() };
       if (id) await setDoc(doc(db, "notifications", toUid, "items", id), data); else await addDoc(collection(db, "notifications", toUid, "items"), data);
     } catch (e) {}
   },
@@ -307,11 +307,12 @@ export const CIN = {
     const uid = me(), t = String(text).trim().slice(0, 500); if (!t || toUid === uid) throw new Error("empty");
     const id = CIN.chatId(uid, toUid), b = writeBatch(db);
     b.set(doc(db, "chats", id), { members: [uid, toUid].sort(), last: t.slice(0, 80), lastFrom: uid, lastAt: serverTimestamp(), ["r_" + uid]: serverTimestamp() }, { merge: true });
-    b.set(doc(collection(db, "chats", id, "messages")), { from: uid, text: t, createdAt: serverTimestamp() });
+    b.set(doc(collection(db, "chats", id, "messages")), { sender: uid, to: toUid, text: t, createdAt: serverTimestamp() });
     await b.commit();
   },
   watchChat(otherUid, cb) {
-    return onSnapshot(query(collection(db, "chats", CIN.chatId(me(), otherUid), "messages"), orderBy("createdAt", "desc"), limit(60)), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() })).reverse()), () => cb([]));
+    return onSnapshot(query(collection(db, "chats", CIN.chatId(me(), otherUid), "messages"), orderBy("createdAt", "desc"), limit(60)), { includeMetadataChanges: true },
+      s => cb(s.docs.map(d => ({ id: d.id, ...d.data(), pending: d.metadata.hasPendingWrites })).reverse()), e => cb(null, e));
   },
   watchChats(cb) {
     return onSnapshot(query(collection(db, "chats"), where("members", "array-contains", me()), limit(50)), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => cb([]));

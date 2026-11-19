@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=33";
+import { CIN } from "./cin-backend.js?v=35";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1114,8 +1114,8 @@ if (CIN.configured) {
   function paintNotes() {
     const b = $('#ntfB'); b.innerHTML = ''; if (!notes.length) { b.innerHTML = '<div class="sempty">Nothing yet. When someone likes, comments or follows, it shows up here.</div>'; return; }
     notes.forEach(n => { const r = document.createElement('div'); r.className = 'srow' + (n.read ? '' : ' unread'); r.innerHTML = '<div class="sa"></div><div class="st"><b></b> <span></span><small></small></div>' + (n.read ? '' : '<i class="sd"></i>');
-      avFill(r.querySelector('.sa'), n.from, n.fromName); r.querySelector('b').textContent = '@' + n.fromHandle; r.querySelector('span').textContent = NT[n.type] || 'sent you something'; r.querySelector('small').textContent = (n.text ? '"' + n.text + '"  ·  ' : '') + agoS(n.createdAt && n.createdAt.seconds);
-      r.onclick = () => { openPub(n.from); }; b.append(r); });
+      avFill(r.querySelector('.sa'), n.sender, n.fromName); r.querySelector('b').textContent = '@' + n.fromHandle; r.querySelector('span').textContent = NT[n.type] || 'sent you something'; r.querySelector('small').textContent = (n.text ? '"' + n.text + '"  ·  ' : '') + agoS(n.createdAt && n.createdAt.seconds);
+      r.onclick = () => { openPub(n.sender); }; b.append(r); });
   }
   function openNotes() { if (!state.account) { gate(null); return; } paintNotes(); ntf.classList.add('show'); const ids = notes.filter(n => !n.read).map(n => n.id); if (ids.length) CIN.markNotificationsRead(ids).catch(() => {}); }
 
@@ -1138,12 +1138,26 @@ if (CIN.configured) {
     if (!state.account) { gate(null); return; } if (uid === state.uid) return;
     curChat = uid; const p = await profOf(uid); $('#dmcT').textContent = p ? (p.name || p.handle) : 'Chat'; $('#dmcT').style.cursor = 'pointer'; $('#dmcT').onclick = () => openPub(uid);
     const log = $('#dmLog'); log.innerHTML = ''; dmc.classList.add('show'); if (unsubChat) unsubChat();
-    unsubChat = CIN.watchChat(uid, items => { const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 120; log.innerHTML = ''; if (!items.length) log.innerHTML = '<div class="sempty">Say hello.</div>'; items.forEach(m => { const d = document.createElement('div'); d.className = 'bub' + (m.from === state.uid ? ' me' : ''); d.textContent = m.text; log.append(d); }); if (atEnd || items.length < 12) log.scrollTop = log.scrollHeight; CIN.markChatRead(uid); });
+    chatItems = []; chatFailed = []; unsubChat = CIN.watchChat(uid, (items, err) => { chatItems = items; chatErr = err || null; drawChat(); if (!err) CIN.markChatRead(uid); });
   }
   $('#dmcX').onclick = () => { dmc.classList.remove('show'); if (unsubChat) { unsubChat(); unsubChat = null; } curChat = null; };
-  async function sendDm() {
+  let chatItems = [], chatFailed = [], chatErr = null;
+  const dmWhy = e => { const c = e && e.code; return c === 'permission-denied' ? 'Not allowed. Publish the newest Firestore rules, or this person blocked you.' : c === 'unavailable' ? 'No internet connection.' : 'Could not send.'; };
+  function drawChat() {
+    const log = $('#dmLog'); if (!log) return; const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 140; log.innerHTML = '';
+    if (chatErr) { log.innerHTML = '<div class="sempty">Could not load this chat.<br>' + (chatErr.code === 'permission-denied' ? 'Publish the newest Firestore rules in Firebase.' : 'Check your internet.') + '</div>'; return; }
+    if (!chatItems.length && !chatFailed.length) log.innerHTML = '<div class="sempty">Say hello.</div>';
+    chatItems.forEach(m => { const d = document.createElement('div'); d.className = 'bub' + (m.sender === state.uid ? ' me' : ''); d.textContent = m.text; if (m.sender === state.uid) { const st = document.createElement('small'); st.style.cssText = 'display:block;text-align:right;font-size:10px;opacity:.8;margin-top:2px'; st.textContent = m.pending ? 'Sending...' : 'Sent'; d.append(st); } log.append(d); });
+    chatFailed.forEach(f => { const d = document.createElement('div'); d.className = 'bub me'; d.style.cssText = 'background:#5a1d28;border:1px solid #ff4f6a'; d.textContent = f.text; const st = document.createElement('small'); st.style.cssText = 'display:block;font-size:11px;margin-top:3px;color:#ffb3bf'; st.textContent = f.why + ' Tap to try again.'; d.append(st); d.onclick = () => { chatFailed = chatFailed.filter(x => x !== f); drawChat(); sendText(f.text); }; log.append(d); });
+    if (atEnd || chatItems.length < 12) log.scrollTop = log.scrollHeight;
+  }
+  async function sendText(t) {
+    if (!curChat) return; const to = curChat;
+    try { await CIN.sendDM(to, t); } catch (e) { if (to === curChat) { chatFailed.push({ text: t, why: dmWhy(e) }); drawChat(); } toast(dmWhy(e)); }
+  }
+  function sendDm() {
     const inp = $('#dmIn'), t = inp.value.trim(); if (!t || !curChat) return; if (blocked.has(curChat)) { toast('You blocked this person. Unblock them to message.'); return; } if (!rateOk()) return;
-    inp.value = ''; try { await CIN.sendDM(curChat, t); } catch (e) { inp.value = t; toast('Could not send. This person may have blocked you, or the Firestore rules are not published yet.'); }
+    inp.value = ''; sendText(t);
   }
   $('#dmSend').onclick = sendDm; $('#dmIn').addEventListener('keydown', e => { if (e.key === 'Enter') sendDm(); });
 
