@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=31";
+import { CIN } from "./cin-backend.js?v=32";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1156,7 +1156,7 @@ if (CIN.configured) {
   { const ib = document.createElement('div'); ib.className = 'inbtns';
     ib.innerHTML = '<button type="button" id="nBtn">' + BELL + 'Notifications <em id="nBadge"></em></button><button type="button" id="mBtn">' + CI.svg('chat', 22) + 'Messages <em id="mBadge"></em></button>';
     $('#inboxSeg').before(ib); $('#nBtn').onclick = openNotes; $('#mBtn').onclick = openMsgs; }
-  { const nr = ['notes', 'Notifications', ''], mr = ['msgs', 'Messages', ''], br = ['blocked', 'Blocked accounts', '']; MENU[0][1].push(nr, mr, br); const ma3 = window.menuAction;
+  { const nr = ['notes', 'Notifications', ''], mr = ['msgs', 'Messages', ''], br = ['blocked', 'Blocked accounts', '']; const ma3 = window.menuAction;
     window.menuAction = function (k) { if (k === 'notes') { closeDrawer(); openNotes(); return; } if (k === 'msgs') { closeDrawer(); openMsgs(); return; } if (k === 'blocked') { closeDrawer(); openBlocked(); return; } return ma3.apply(this, arguments); }; }
 
   // ---------- block and report a person, buttons on the public profile ----------
