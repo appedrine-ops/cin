@@ -1,11 +1,11 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=27";
+import { CIN } from "./cin-backend.js?v=29";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const clipEl = id => id ? $('.clip[data-id="' + CSS.escape(id) + '"]') : null;
-  const handleUid = {};            // '@handle' -> uid
+  const nameOf = {}; const handleUid = {};            // '@handle' -> uid
   let signingUp = false, cursor = null, loading = false, exhausted = false;
   let unsubC = null, unsubCircle = null, unsubCollabs = null;
   let cloudIn = [], outList = [], searchNames = [], searching = false;
@@ -469,7 +469,7 @@ if (CIN.configured) {
     unsubC = CIN.watchComments(activeClip, items => {
       list.innerHTML = '';
       if (!items.length) list.innerHTML = '<div class="comment">Be the first to comment.</div>';
-      items.forEach(x => { const d = document.createElement('div'); d.className = 'comment'; const b = document.createElement('b'); b.textContent = '@' + x.handle; d.append(b, document.createTextNode(x.text)); list.append(d); });
+      items.forEach(x => { const d = document.createElement('div'); d.className = 'comment cm-row'; const av = document.createElement('span'); av.className = 'cm-av'; circle(av, '', x.handle); if (x.uid) photoOf(x.uid).then(u => u && circle(av, u, x.handle)); const w = document.createElement('div'); w.className = 'cm-t'; const b = document.createElement('b'); b.textContent = '@' + x.handle; w.append(b, document.createTextNode(x.text)); d.append(av, w); list.append(d); });
       c.dataset.cc = items.length; syncLikes();
     });
   };
@@ -515,9 +515,12 @@ if (CIN.configured) {
       const d = document.createElement('div'); d.className = 'person';
       d.innerHTML = '<div class="mini"></div><div class="info"><strong></strong><small></small></div><button></button>';
       d.querySelector('.mini').textContent = (name.replace('@', '')[0] || '?').toUpperCase();
+      { const cl = $$('.clip[data-uid]').find(c => (c.querySelector('.creator') || {}).textContent === name), pu = handleUid[name] || (cl && cl.dataset.uid), mn = d.querySelector('.mini'); if (pu) photoOf(pu).then(u => u && circle(mn, u, name)); }
       d.querySelector('strong').textContent = name;
-      d.querySelector('small').textContent = BIOS[name] || 'CIN creator';
-      const b = d.querySelector('button'); b.dataset.name = name; b.onclick = () => window.toggleFollow(name);
+      d.querySelector('small').textContent = (nameOf[name] ? nameOf[name] + ' · ' : '') + (BIOS[name] || 'CIN creator');
+      const b = d.querySelector('button'); b.dataset.name = name; b.onclick = e => { e.stopPropagation(); window.toggleFollow(name); };
+      d.querySelector('.info').style.cursor = d.querySelector('.mini').style.cursor = 'pointer';
+      d.onclick = () => { const cl = $$('.clip[data-uid]').find(c => (c.querySelector('.creator') || {}).textContent === name), pu = handleUid[name] || (cl && cl.dataset.uid); if (pu) window.openPublicProfile(pu); else toast('Profile not available'); };
       box.append(d);
     });
     paintFollows();
@@ -530,7 +533,7 @@ if (CIN.configured) {
         if (!q) { searching = false; searchNames = []; renderPeople(); return; }
         try {
           const res = await CIN.searchUsers(q);
-          searchNames = res.map(u => { handleUid['@' + u.handle] = u.id; return '@' + u.handle; });
+          searchNames = res.map(u => { handleUid['@' + u.handle] = u.id; nameOf['@' + u.handle] = u.name || ''; return '@' + u.handle; });
           searching = true; renderPeople();
         } catch (e) { toast('Search failed'); }
       }, 350);
@@ -978,6 +981,92 @@ if (CIN.configured) {
   { const ccss = document.createElement('style');
     ccss.textContent = `.stats>*:nth-child(1) strong{color:#ff4f91}.stats>*:nth-child(2) strong{color:#4fc3ff}.stats>*:nth-child(3) strong{color:#b8ff4a}.stats>*:nth-child(4) strong{color:#ffd34f}.stats{background:linear-gradient(135deg,#1b1034,#0f2a3a)}.chip{background:linear-gradient(135deg,#2a1b4a,#14344a)}.primary{background:linear-gradient(135deg,#b8ff4a,#4fe0a0)}`;
     document.head.append(ccss); }
+
+  // ---------- profile photos in the feed, heart pop, branded share card ----------
+  { const pcss = document.createElement('style');
+    pcss.textContent = `.avatar,.mini,.cm-av{background-size:cover!important;background-position:center!important}.cm-row{display:flex;gap:10px;align-items:flex-start}.cm-av{flex:none;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#159b91);color:#10140b;display:grid;place-items:center;font-weight:900;font-size:14px}.cm-t{min-width:0;word-break:break-word}.action.like.liked span{animation:cinPop .45s ease}@keyframes cinPop{0%{transform:scale(1)}30%{transform:scale(1.5) rotate(-8deg)}60%{transform:scale(.9)}100%{transform:scale(1)}}.sharecard-btn{width:100%;margin-top:12px;padding:13px;border-radius:14px;background:linear-gradient(135deg,#8b5cf6,#ff4f91);color:#fff;font-weight:800}`;
+    document.head.append(pcss);
+    const paintAv = () => $$('.clip[data-cloud]').forEach(c => { const av = c.querySelector('.actions .avatar'), u = c.dataset.uid; if (av && u && !av.dataset.ph) { av.dataset.ph = '1'; photoOf(u).then(url => { if (url) circle(av, url, ''); else av.dataset.ph = ''; }); } });
+    const lb0 = loadBadges; window.addEventListener('cin-feed-painted', paintAv);
+    const mo = new MutationObserver(() => { clearTimeout(paintAv.t); paintAv.t = setTimeout(paintAv, 250); });
+    mo.observe($('#feed'), { childList: true });
+    // branded share card
+    function wrapText(g, t, x, y, w, lh, max) { const words = t.split(/\s+/); let line = '', n = 0; for (const wd of words) { const tt = line ? line + ' ' + wd : wd; if (g.measureText(tt).width > w && line) { g.fillText(line, x, y); y += lh; line = wd; if (++n >= max) return; } else line = tt; } if (line) g.fillText(line, x, y); }
+    async function makeCard(id) {
+      const c = id ? $('.clip[data-id="' + CSS.escape(id) + '"]') : null;
+      const who = c ? ((c.querySelector('.creator') || {}).childNodes[0] || {}).textContent || '' : '@' + (state.handle || ''), cap = c ? ((c.querySelector('.caption') || {}).textContent || '') : 'Create. Inspire. Network.';
+      const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350; const g = cv.getContext('2d');
+      const bg = g.createLinearGradient(0, 0, 1080, 1350); bg.addColorStop(0, '#2d1d44'); bg.addColorStop(.6, '#1a1229'); bg.addColorStop(1, '#0b2a3a'); g.fillStyle = bg; g.fillRect(0, 0, 1080, 1350);
+      const rg = g.createRadialGradient(540, 430, 20, 540, 430, 520); rg.addColorStop(0, 'rgba(139,92,246,.45)'); rg.addColorStop(1, 'rgba(139,92,246,0)'); g.fillStyle = rg; g.fillRect(0, 0, 1080, 1350);
+      await new Promise(r => { const im = new Image(); im.onload = () => { g.drawImage(im, 390, 160, 300, 300); r(); }; im.onerror = r; im.src = 'logo-clear.png'; });
+      g.textAlign = 'center'; g.fillStyle = '#fff'; g.font = '800 96px sans-serif'; g.fillText('CIN', 540, 600);
+      g.fillStyle = '#ffb02e'; g.font = '700 38px sans-serif'; g.fillText('Create. Inspire. Network.', 540, 660);
+      g.fillStyle = '#fff'; g.font = '700 54px sans-serif'; wrapText(g, cap.slice(0, 120) || 'Watch me on CIN', 540, 790, 880, 72, 3);
+      g.fillStyle = '#b8ff4a'; g.font = '800 52px sans-serif'; g.fillText(who, 540, 1040);
+      g.fillStyle = '#c9cbe0'; g.font = '600 34px sans-serif'; g.fillText('Free short videos, photos and stories', 540, 1100);
+      const pill = 'appedrine-ops.github.io/cin'; g.font = '800 38px sans-serif'; const pw = g.measureText(pill).width + 70; g.fillStyle = '#ffb02e'; g.beginPath(); g.roundRect ? g.roundRect(540 - pw / 2, 1180, pw, 80, 40) : g.rect(540 - pw / 2, 1180, pw, 80); g.fill(); g.fillStyle = '#1a1229'; g.fillText(pill, 540, 1233);
+      return new Promise(r => cv.toBlob(r, 'image/png'));
+    }
+    const os0 = window.openShare;
+    window.openShare = function (id) {
+      os0.apply(this, arguments);
+      const g = $('#shareGrid'); if (!g || g.parentNode.querySelector('.sharecard-btn')) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'sharecard-btn'; b.textContent = 'Share as a CIN picture card';
+      b.onclick = async () => { b.disabled = true; try { const bl = await makeCard(id), f = new File([bl], 'cin-card.png', { type: 'image/png' }); if (navigator.canShare && navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: 'CIN', text: 'Join me on CIN' }); else { const a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = 'cin-card.png'; document.body.append(a); a.click(); a.remove(); toast('Card saved to your phone'); } } catch (e) { if (!e || e.name !== 'AbortError') toast('Could not make the card'); } b.disabled = false; };
+      g.after(b);
+    };
+  }
+
+  // ---------- public profile page: tap a creator's photo or name, or swipe left on a video ----------
+  { const css = document.createElement('style');
+    css.textContent = `.pub{position:absolute;inset:0;z-index:37;background:#08090d;display:none;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}.pub.show{display:block}.pub .pbn{height:170px;background:linear-gradient(135deg,#2b1c55,#0f5a63 60%,#1a7f4b);position:relative;overflow:hidden}.pub .pbn img,.pub .pbn video{width:100%;height:100%;object-fit:cover;display:block}.pub .pbk{position:absolute;top:12px;left:12px;z-index:2;width:42px;height:42px;border-radius:50%;background:#0009;color:#fff;display:grid;place-items:center}.pub .pbd{padding:0 18px;margin-top:-44px;position:relative}.pub .pav{width:92px;height:92px;border-radius:50%;border:4px solid #08090d;background:linear-gradient(135deg,#b8ff4a,#159b91) center/cover;display:grid;place-items:center;font-size:34px;font-weight:900;color:#10140b}.pub h2{margin:10px 0 2px;font-size:24px}.pub .ph2{color:#9da2b1;font-size:14px}.pub .pbio{margin:10px 0;font-size:14px;color:#d8dbe4}.pub .pst{display:flex;justify-content:space-around;text-align:center;background:linear-gradient(135deg,#1b1034,#0f2a3a);border-radius:16px;padding:14px 6px;margin:14px 0}.pub .pst b{display:block;font-size:19px}.pub .pst small{color:#9da2b1;font-size:11px}.pub .pgr{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}.pub .pgr button{aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:linear-gradient(135deg,#8b5cf6,#ff4f91);padding:0;position:relative}.pub .pgr img{width:100%;height:100%;object-fit:cover;display:block}.pub .pgr small{position:absolute;left:5px;bottom:4px;font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000}.pvw{position:absolute;inset:0;z-index:39;background:#000;display:none;align-items:center;justify-content:center}.pvw.show{display:flex}.pvw img,.pvw video{max-width:100%;max-height:100%}.pvw button{position:absolute;top:14px;left:14px;width:42px;height:42px;border-radius:50%;background:#fff3;color:#fff;display:grid;place-items:center}`;
+    document.head.append(css);
+    const pub = document.createElement('div'); pub.className = 'pub'; pub.id = 'pub';
+    pub.innerHTML = '<div class="pbn" id="pbn"><button type="button" class="pbk" id="pbk" aria-label="Back">' + CI.svg('close', 22) + '</button></div><div class="pbd"><div class="pav" id="pav"></div><h2 id="pnm"></h2><div class="ph2" id="phd"></div><div class="pbio" id="pbi"></div><button type="button" id="pfw" class="primary" style="width:100%;margin:6px 0 0">Follow</button><div class="pst"><div><b id="ps1">0</b><small>Followers</small></div><div><b id="ps2">0</b><small>Following</small></div><div><b id="ps3">0</b><small>Posts</small></div></div><div class="pgr" id="pgr"></div></div>';
+    const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.id = 'pvw'; pvw.innerHTML = '<button type="button" id="pvwX" aria-label="Close">' + CI.svg('close', 22) + '</button><div id="pvwB" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"></div>';
+    $('.app').append(pub, pvw);
+    $('#pvwX').onclick = () => { pvw.classList.remove('show'); $('#pvwB').innerHTML = ''; };
+    $('#pbk').onclick = () => pub.classList.remove('show');
+    let ptx = 0, pty = 0; pub.addEventListener('touchstart', e => { ptx = e.touches[0].clientX; pty = e.touches[0].clientY; }, { passive: true });
+    pub.addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - ptx, dy = e.changedTouches[0].clientY - pty; if (dx > 90 && Math.abs(dy) < 50) pub.classList.remove('show'); }, { passive: true });
+    async function openPublic(uid) {
+      if (!uid) return;
+      if (uid === state.uid) { pub.classList.remove('show'); window.navigate && window.navigate('profile'); return; }
+      try {
+        const p = await CIN.getProfile(uid); if (!p) { toast('That profile was not found'); return; }
+        const pbn = $('#pbn'); Array.from(pbn.children).forEach(c => { if (c.id !== 'pbk') c.remove(); }); if (p.bannerURL) pbn.prepend(mediaEl(p.bannerURL, p.bannerType));
+        circle($('#pav'), p.photoURL || '', p.name || p.handle); $('#pnm').textContent = p.name || p.handle; const t = tierOf(p); if (t) $('#pnm').append(badgeEl(t));
+        $('#phd').textContent = '@' + p.handle; $('#pbi').textContent = p.bio || ''; $('#ps1').textContent = p.followersCount || 0; $('#ps2').textContent = p.followingCount || 0; $('#ps3').textContent = p.postsCount || 0;
+        const fb = $('#pfw'); let on = false; if (state.account) { try { on = (await CIN.getFollowingIds()).includes(uid); } catch (e) {} }
+        const paint = () => { fb.textContent = on ? 'Following' : 'Follow'; fb.className = on ? 'secondary' : 'primary'; fb.style.width = '100%'; }; paint();
+        fb.onclick = async () => { if (!state.account) { pub.classList.remove('show'); gate(null); return; } fb.disabled = true; try { on = await CIN.toggleFollow(uid); paint(); $('#ps1').textContent = Math.max(0, (parseInt($('#ps1').textContent, 10) || 0) + (on ? 1 : -1)); } catch (e) { toast('Could not follow. Try again.'); } fb.disabled = false; };
+        const gr = $('#pgr'); gr.innerHTML = ''; pub.classList.add('show'); pub.scrollTop = 0;
+        let vs = []; try { vs = (await CIN.getUserVideos(uid)).filter(v => (v.privacy || 'everyone') === 'everyone'); } catch (e) {}
+        if (!vs.length) { gr.style.display = 'block'; gr.innerHTML = '<div class="as" style="color:#9da2b1;text-align:center;padding:24px 0">No public posts yet.</div>'; return; } gr.style.display = '';
+        vs.forEach(v => {
+          const b = document.createElement('button'); b.type = 'button';
+          const th = v.photoURL || (v.videoURL ? v.videoURL.replace('/upload/', '/upload/so_0,w_300,h_400,c_fill/').replace(/\.(mp4|mov|webm)$/i, '.jpg') : '');
+          if (th) { const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = th; im.onerror = () => im.remove(); b.append(im); }
+          const sm = document.createElement('small'); sm.textContent = (v.likesCount || 0) + ' likes'; b.append(sm);
+          b.onclick = () => { const bx = $('#pvwB'); bx.innerHTML = ''; let el; if (v.type === 'photo' || v.photoURL) { el = document.createElement('img'); el.src = v.photoURL; } else { el = document.createElement('video'); el.src = v.videoURL; el.controls = true; el.autoplay = true; el.playsInline = true; } bx.append(el); pvw.classList.add('show'); };
+          gr.append(b);
+        });
+      } catch (e) { toast('Could not open that profile'); }
+    }
+    window.openPublicProfile = openPublic;
+    // taps on the creator photo or name in the feed
+    $('#feed').addEventListener('click', e => {
+      const hit = e.target.closest('.actions .avatar, .creator'); if (!hit) return;
+      const c = hit.closest('.clip[data-uid]'); if (!c) return; e.stopPropagation(); e.preventDefault(); openPublic(c.dataset.uid);
+    }, true);
+    // swipe left on a video opens its creator
+    let sx = 0, sy = 0, st = 0; const feed = $('#feed');
+    feed.addEventListener('touchstart', e => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); }, { passive: true });
+    feed.addEventListener('touchend', e => {
+      const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; if (Date.now() - st > 700 || dx > -90 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
+      const el = document.elementFromPoint(t.clientX, t.clientY), c = el && el.closest('.clip[data-uid]'); if (c) openPublic(c.dataset.uid);
+    }, { passive: true });
+  }
   // opening a profile link (someone scanned a QR code)
   const pv = document.createElement('div'); pv.className = 'qrc'; pv.id = 'pvc';
   pv.innerHTML = '<button type="button" class="qx" id="pvX" aria-label="Close">' + CI.svg('close', 22) + '</button><div class="qr-card"><div class="qr-av" id="pvAv"></div><h2 id="pvName"></h2><div class="h" id="pvHandle"></div><p id="pvBio" style="margin:0 0 12px;color:#333;font-size:14px"></p><p id="pvStat" style="margin:0 0 14px;color:#555;font-size:13px"></p><button type="button" id="pvFollow" class="primary" style="width:100%">Follow</button></div>';

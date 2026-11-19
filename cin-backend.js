@@ -269,10 +269,16 @@ export const CIN = {
   },
   async listVerified() { const s = await getDocs(query(collection(db, "users"), where("verified", "==", true), limit(50))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
   async searchUsers(prefix) {
-    const p = clean(prefix);
-    if (!p) return [];
-    const s = await getDocs(query(collection(db, "users"), where("handle", ">=", p), where("handle", "<=", p + "\uf8ff"), limit(20)));
-    return s.docs.map(d => ({ id: d.id, ...d.data() }));
+    const raw = String(prefix || "").trim().replace(/^@/, "").slice(0, 30), p = clean(raw);
+    if (!raw) return [];
+    const ref = collection(db, "users"), tries = [];
+    if (p) tries.push(getDocs(query(ref, where("handle", ">=", p), where("handle", "<=", p + "\uf8ff"), limit(20))));
+    // display names are stored as typed, so try the typed text and a capitalised version
+    const caps = raw.charAt(0).toUpperCase() + raw.slice(1), title = raw.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
+    [...new Set([raw, caps, title])].forEach(n => tries.push(getDocs(query(ref, where("name", ">=", n), where("name", "<=", n + "\uf8ff"), limit(20)))));
+    const out = new Map();
+    (await Promise.allSettled(tries)).forEach(r => { if (r.status === "fulfilled") r.value.docs.forEach(d => out.set(d.id, { id: d.id, ...d.data() })); });
+    return [...out.values()].slice(0, 30);
   },
 
   // ---------- Circles ----------
