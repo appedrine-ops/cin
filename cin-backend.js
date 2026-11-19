@@ -2,7 +2,7 @@
 // Include in index.html with <script type="module" src="cin-backend.js"></script>
 // and fill in firebaseConfig from Firebase Console > Project settings > Your apps > Web.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, deleteUser }
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendEmailVerification, sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential, deleteUser }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, updateDoc, collection, query, where, orderBy, limit,
   getDocs, writeBatch, increment, serverTimestamp, onSnapshot, startAfter }
@@ -205,6 +205,7 @@ export const CIN = {
     if (liked) { b.delete(lref); b.update(vref, { likesCount: increment(-1) }); }
     else { b.set(lref, { createdAt: serverTimestamp() }); b.update(vref, { likesCount: increment(1) }); }
     await b.commit();
+    if (!liked) { try { const v = await getDoc(vref); if (v.exists()) CIN.notify(v.data().uid, "like", "like_" + vid + "_" + uid, { vid, text: (v.data().caption || "").slice(0, 60) }); } catch (e) {} }
     return !liked;
   },
 
@@ -214,6 +215,7 @@ export const CIN = {
     b.set(doc(collection(db, "videos", vid, "comments")), { uid, handle: p.handle, text: text.slice(0, 300), createdAt: serverTimestamp() });
     b.update(doc(db, "videos", vid), { commentsCount: increment(1) });
     await b.commit();
+    try { const v = await getDoc(doc(db, "videos", vid)); if (v.exists()) CIN.notify(v.data().uid, "comment", null, { vid, text: String(text).slice(0, 80) }); } catch (e) {}
   },
   watchComments(vid, cb) {
     return onSnapshot(query(collection(db, "videos", vid, "comments"), orderBy("createdAt", "asc"), limit(100)),
@@ -231,6 +233,7 @@ export const CIN = {
     b.update(doc(db, "users", uid), { followingCount: increment(on ? -1 : 1) });
     b.update(doc(db, "users", targetUid), { followersCount: increment(on ? -1 : 1) });
     await b.commit();
+    if (!on) CIN.notify(targetUid, "follow", "follow_" + uid, {});
     return !on;
   },
   // ---------- verification (only an admin can give or remove the blue tick) ----------
@@ -280,6 +283,53 @@ export const CIN = {
     (await Promise.allSettled(tries)).forEach(r => { if (r.status === "fulfilled") r.value.docs.forEach(d => out.set(d.id, { id: d.id, ...d.data() })); });
     return [...out.values()].slice(0, 30);
   },
+
+
+  // ---------- Notifications (best effort: a failed notification never blocks a like or follow) ----------
+  async notify(toUid, type, id, extra = {}) {
+    try {
+      const uid = me(); if (!toUid || toUid === uid) return;
+      const p = await CIN.getProfile(uid), data = { type, from: uid, fromHandle: p.handle, fromName: p.name || p.handle, vid: extra.vid || "", text: String(extra.text || "").slice(0, 100), read: false, createdAt: serverTimestamp() };
+      if (id) await setDoc(doc(db, "notifications", toUid, "items", id), data); else await addDoc(collection(db, "notifications", toUid, "items"), data);
+    } catch (e) {}
+  },
+  watchNotifications(cb) {
+    return onSnapshot(query(collection(db, "notifications", me(), "items"), orderBy("createdAt", "desc"), limit(40)), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => cb([]));
+  },
+  async markNotificationsRead(ids) { const b = writeBatch(db); ids.slice(0, 40).forEach(i => b.update(doc(db, "notifications", me(), "items", i), { read: true })); await b.commit(); },
+
+  // ---------- Views ----------
+  countView: vid => updateDoc(doc(db, "videos", vid), { viewsCount: increment(1) }),
+
+  // ---------- Direct messages ----------
+  chatId: (a, b) => [a, b].sort().join("_"),
+  async sendDM(toUid, text) {
+    const uid = me(), t = String(text).trim().slice(0, 500); if (!t || toUid === uid) throw new Error("empty");
+    const id = CIN.chatId(uid, toUid), b = writeBatch(db);
+    b.set(doc(db, "chats", id), { members: [uid, toUid].sort(), last: t.slice(0, 80), lastFrom: uid, lastAt: serverTimestamp(), ["r_" + uid]: serverTimestamp() }, { merge: true });
+    b.set(doc(collection(db, "chats", id, "messages")), { from: uid, text: t, createdAt: serverTimestamp() });
+    await b.commit();
+  },
+  watchChat(otherUid, cb) {
+    return onSnapshot(query(collection(db, "chats", CIN.chatId(me(), otherUid), "messages"), orderBy("createdAt", "desc"), limit(60)), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() })).reverse()), () => cb([]));
+  },
+  watchChats(cb) {
+    return onSnapshot(query(collection(db, "chats"), where("members", "array-contains", me()), limit(50)), s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))), () => cb([]));
+  },
+  async markChatRead(otherUid) { try { await updateDoc(doc(db, "chats", CIN.chatId(me(), otherUid)), { ["r_" + me()]: serverTimestamp() }); } catch (e) {} },
+
+  // ---------- Block and report a person ----------
+  async listBlocks() { const s = await getDocs(collection(db, "users", me(), "blocks")); return s.docs.map(d => d.id); },
+  async blockUser(uid) { await setDoc(doc(db, "users", me(), "blocks", uid), { createdAt: serverTimestamp() }); },
+  async unblockUser(uid) { await deleteDoc(doc(db, "users", me(), "blocks", uid)); },
+  reportUser: (targetUid, handle, reason) => addDoc(collection(db, "reports"), { kind: "person", videoId: "", targetUid, handle: String(handle).slice(0, 20), reason: String(reason).slice(0, 80), reporterUid: me(), createdAt: serverTimestamp() }),
+
+  // ---------- Password reset ----------
+  resetPassword: email => sendPasswordResetEmail(auth, String(email).trim()),
+
+  // ---------- Hashtag and sound pages ----------
+  async videosByTag(tag) { const s = await getDocs(query(collection(db, "videos"), where("tags", "array-contains", String(tag).toLowerCase().replace(/[^a-z0-9_]/g, "")), limit(60))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
+  async videosBySound(field, name) { const s = await getDocs(query(collection(db, "videos"), where(field === "music" ? "music" : "musicName", "==", String(name)), limit(60))); return s.docs.map(d => ({ id: d.id, ...d.data() })); },
 
   // ---------- Circles ----------
   watchCircle(cid, cb) {

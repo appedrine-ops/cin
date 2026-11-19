@@ -1,11 +1,11 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=29";
+import { CIN } from "./cin-backend.js?v=31";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const clipEl = id => id ? $('.clip[data-id="' + CSS.escape(id) + '"]') : null;
-  const nameOf = {}; const handleUid = {};            // '@handle' -> uid
+  const nameOf = {}; const blocked = new Set(); let blocksLoaded = false; const handleUid = {};            // '@handle' -> uid
   let signingUp = false, cursor = null, loading = false, exhausted = false;
   let unsubC = null, unsubCircle = null, unsubCollabs = null;
   let cloudIn = [], outList = [], searchNames = [], searching = false;
@@ -44,13 +44,15 @@ if (CIN.configured) {
   passRow.after(intRow);
   const swap = document.createElement('button'); swap.className = 'secondary'; swap.style.cssText = 'width:100%;margin-top:10px';
   $('#joinBtn').after(swap);
+  const forgotBtn = document.createElement('button'); forgotBtn.type = 'button'; forgotBtn.style.cssText = 'width:100%;margin-top:6px;background:none;color:#8ab4ff;font-weight:700;font-size:14px;padding:10px;display:none'; forgotBtn.textContent = 'Forgot password?'; swap.after(forgotBtn);
+  forgotBtn.onclick = async () => { const em = $('#joinEmail').value.trim(); if (!/^\S+@\S+\.\S+$/.test(em)) { toast('Type your email in the email box first'); return; } forgotBtn.disabled = true; try { await CIN.resetPassword(em); toast('If this email has an account, a reset link is on its way. Check Spam too.'); } catch (e) { toast(friendly(e)); } forgotBtn.disabled = false; };
   let mode = 'signup';
   function setMode(m) {
     mode = m; const login = m === 'login';
     nameRow.style.display = handleRow.style.display = agree.style.display = intRow.style.display = login ? 'none' : '';
     $('#joinBtn').textContent = login ? 'Log in' : 'Join CIN';
     $('#authModal .sheethead strong').textContent = login ? 'Log in' : 'Join CIN';
-    swap.textContent = login ? 'New here? Create an account' : 'I already have an account';
+    swap.textContent = login ? 'New here? Create an account' : 'I already have an account'; forgotBtn.style.display = login ? '' : 'none';
   }
   swap.onclick = () => setMode(mode === 'login' ? 'signup' : 'login');
   setMode('signup');
@@ -266,7 +268,8 @@ if (CIN.configured) {
         const box = document.createElement('div'); const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:6px';
         r.append(h, m, info, box, row); list.append(r);
         const dismiss = mkBtn('Dismiss', '#3a3f4d', async () => { try { await CIN.closeReport(q.id); r.remove(); toast('Report closed'); } catch (e) { toast('Could not close. Publish the new Firestore rules.'); } });
-        CIN.getVideoDoc(q.videoId).then(v => {
+        (q.kind === 'person' ? Promise.resolve({ __person: 1 }) : CIN.getVideoDoc(q.videoId)).then(v => {
+          if (v && v.__person) { info.textContent = 'Person: @' + q.handle + ' (id ' + q.targetUid + ')'; row.append(dismiss); return; }
           if (!v) { info.textContent = 'This post was already removed.'; row.append(dismiss); return; }
           info.textContent = '@' + v.handle + ' · ' + (v.type === 'photo' ? 'Photo' : 'Video') + (v.caption ? ' · ' + v.caption : '');
           row.append(mkBtn('Preview', '#2b6cff', () => { if (box.firstChild) { box.innerHTML = ''; return; } const m2 = document.createElement(v.type === 'photo' ? 'img' : 'video'); m2.style.cssText = 'width:100%;max-height:50vh;object-fit:contain;background:#000;border-radius:10px'; if (v.type === 'photo') m2.src = v.photoURL; else { m2.src = v.videoURL; m2.controls = true; m2.playsInline = true; } box.append(m2); }),
@@ -339,7 +342,8 @@ if (CIN.configured) {
     clip.querySelector('.tags').textContent = (v.tags || []).map(t => '#' + t).join(' ');
     clip.querySelector('.avatar').textContent = (v.handle[0] || 'C').toUpperCase();
     if (v.music && v.music !== 'off') { clip.dataset.music = v.music; clip.querySelector('.sound').textContent = 'Auto music: ' + v.music[0].toUpperCase() + v.music.slice(1); }
-    handleUid['@' + v.handle] = v.uid;
+    handleUid['@' + v.handle] = v.uid; clip.dataset.views = v.viewsCount || 0;
+    { const sn = v.musicName || (v.music && v.music !== 'off' ? v.music : ''); if (sn) { clip.dataset.sname = sn; clip.dataset.sfield = v.musicName ? 'musicName' : 'music'; } }
     clip.querySelector('.like').onclick = () => window.toggleLike(v.id);
     clip.querySelector('.comments').onclick = () => { if (v.allowComments === false) { toast('Comments are turned off for this post'); return; } activeClip = v.id; window.renderComments(); $('#commentsModal').classList.add('show'); };
     clip.querySelector('.share').onclick = () => openShare(v.id);
@@ -394,7 +398,7 @@ if (CIN.configured) {
     return clip;
   }
   async function loadFeed(reset) {
-    if (loading) return; loading = true;
+    if (loading) return; loading = true; skel(true);
     try {
       if (reset) {
         $$('.clip[data-cloud]').forEach(c => { const v = c.querySelector('video'); if (v) { io.unobserve(v); v.pause(); } if (c._off) c._off(); c.remove(); });
@@ -411,7 +415,8 @@ if (CIN.configured) {
         if (p === 'only_me' || !state.uid) return false;
         try { return await CIN.isFriend(v.uid); } catch (e) { return false; }
       }));
-      const vids = raw.filter((_, i) => okv[i]);
+      if (state.account && !blocksLoaded) { try { (await CIN.listBlocks()).forEach(u => blocked.add(u)); blocksLoaded = true; } catch (e) {} }
+      const vids = raw.filter((v, i) => okv[i] && !blocked.has(v.uid));
       const likedSet = new Set();
       if (state.account) await Promise.all(vids.map(v => CIN.hasLiked(v.id).then(l => { if (l) likedSet.add(v.id); }).catch(() => {})));
       const anchor = $('.clip[data-id="welcome"]');
@@ -436,7 +441,7 @@ if (CIN.configured) {
       }
       syncLikes(); renderPeople(); applyFeed(null, false); renderHub();
     } catch (e) { console.warn('Feed load failed', e); toast('Could not load the feed: ' + String((e && (e.code || e.message)) || 'error').slice(0, 60)); }
-    finally { loading = false; }
+    finally { loading = false; skel(false); }
   }
   $('#feed').addEventListener('scroll', () => { const f = $('#feed'); if (!exhausted && f.scrollTop + f.clientHeight > f.scrollHeight - f.clientHeight * 1.6) loadFeed(false); }, { passive: true });
 
@@ -956,7 +961,7 @@ if (CIN.configured) {
         const [p, vs] = await Promise.all([CIN.getProfile(state.uid), CIN.getUserVideos(state.uid)]);
         const likes = vs.reduce((a, v) => a + (v.likesCount || 0), 0), com = vs.reduce((a, v) => a + (v.commentsCount || 0), 0);
         const d7 = Date.now() / 1000 - 7 * 86400, new7 = vs.filter(v => v.createdAt && v.createdAt.seconds > d7).length;
-        const stats = [['Followers', (p && p.followersCount) || 0], ['Posts', vs.length], ['Likes', likes], ['Comments', com], ['Following', (p && p.followingCount) || 0], ['Posts, last 7 days', new7]];
+        const stats = [['Followers', (p && p.followersCount) || 0], ['Posts', vs.length], ['Likes', likes], ['Comments', com], ['Views', vs.reduce((a, v) => a + (v.viewsCount || 0), 0)], ['Posts, last 7 days', new7]];
         body.innerHTML = '<div class="ag"></div>';
         stats.forEach(([l, n], i) => { const c = document.createElement('div'); c.className = 'ac'; c.style.background = 'linear-gradient(135deg,' + CARD[i][0] + ',' + CARD[i][1] + ')'; c.innerHTML = '<b></b><span></span>'; c.firstChild.textContent = n; c.lastChild.textContent = l; body.firstChild.append(c); });
         const rec = vs.slice(0, 7).reverse(), mx = Math.max(1, ...rec.map(v => v.likesCount || 0));
@@ -1022,13 +1027,11 @@ if (CIN.configured) {
     css.textContent = `.pub{position:absolute;inset:0;z-index:37;background:#08090d;display:none;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}.pub.show{display:block}.pub .pbn{height:170px;background:linear-gradient(135deg,#2b1c55,#0f5a63 60%,#1a7f4b);position:relative;overflow:hidden}.pub .pbn img,.pub .pbn video{width:100%;height:100%;object-fit:cover;display:block}.pub .pbk{position:absolute;top:12px;left:12px;z-index:2;width:42px;height:42px;border-radius:50%;background:#0009;color:#fff;display:grid;place-items:center}.pub .pbd{padding:0 18px;margin-top:-44px;position:relative}.pub .pav{width:92px;height:92px;border-radius:50%;border:4px solid #08090d;background:linear-gradient(135deg,#b8ff4a,#159b91) center/cover;display:grid;place-items:center;font-size:34px;font-weight:900;color:#10140b}.pub h2{margin:10px 0 2px;font-size:24px}.pub .ph2{color:#9da2b1;font-size:14px}.pub .pbio{margin:10px 0;font-size:14px;color:#d8dbe4}.pub .pst{display:flex;justify-content:space-around;text-align:center;background:linear-gradient(135deg,#1b1034,#0f2a3a);border-radius:16px;padding:14px 6px;margin:14px 0}.pub .pst b{display:block;font-size:19px}.pub .pst small{color:#9da2b1;font-size:11px}.pub .pgr{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}.pub .pgr button{aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:linear-gradient(135deg,#8b5cf6,#ff4f91);padding:0;position:relative}.pub .pgr img{width:100%;height:100%;object-fit:cover;display:block}.pub .pgr small{position:absolute;left:5px;bottom:4px;font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000}.pvw{position:absolute;inset:0;z-index:39;background:#000;display:none;align-items:center;justify-content:center}.pvw.show{display:flex}.pvw img,.pvw video{max-width:100%;max-height:100%}.pvw button{position:absolute;top:14px;left:14px;width:42px;height:42px;border-radius:50%;background:#fff3;color:#fff;display:grid;place-items:center}`;
     document.head.append(css);
     const pub = document.createElement('div'); pub.className = 'pub'; pub.id = 'pub';
-    pub.innerHTML = '<div class="pbn" id="pbn"><button type="button" class="pbk" id="pbk" aria-label="Back">' + CI.svg('close', 22) + '</button></div><div class="pbd"><div class="pav" id="pav"></div><h2 id="pnm"></h2><div class="ph2" id="phd"></div><div class="pbio" id="pbi"></div><button type="button" id="pfw" class="primary" style="width:100%;margin:6px 0 0">Follow</button><div class="pst"><div><b id="ps1">0</b><small>Followers</small></div><div><b id="ps2">0</b><small>Following</small></div><div><b id="ps3">0</b><small>Posts</small></div></div><div class="pgr" id="pgr"></div></div>';
+    pub.innerHTML = '<div class="pbn" id="pbn"><button type="button" class="pbk" id="pbk" aria-label="Back">' + CI.svg('close', 22) + '</button></div><div class="pbd"><div class="pav" id="pav"></div><h2 id="pnm"></h2><div class="ph2" id="phd"></div><div class="pbio" id="pbi"></div><button type="button" id="pfw" class="primary" style="width:100%;margin:6px 0 0">Follow</button><button type="button" id="pmsg" class="secondary" style="width:100%;margin:8px 0 0">Message</button><div style="display:flex;gap:8px;margin-top:8px"><button type="button" id="pblk" class="secondary" style="flex:1">Block</button><button type="button" id="prpt" class="secondary" style="flex:1">Report</button></div><div class="pst"><div><b id="ps1">0</b><small>Followers</small></div><div><b id="ps2">0</b><small>Following</small></div><div><b id="ps3">0</b><small>Posts</small></div></div><div class="pgr" id="pgr"></div></div>';
     const pvw = document.createElement('div'); pvw.className = 'pvw'; pvw.id = 'pvw'; pvw.innerHTML = '<button type="button" id="pvwX" aria-label="Close">' + CI.svg('close', 22) + '</button><div id="pvwB" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"></div>';
     $('.app').append(pub, pvw);
     $('#pvwX').onclick = () => { pvw.classList.remove('show'); $('#pvwB').innerHTML = ''; };
     $('#pbk').onclick = () => pub.classList.remove('show');
-    let ptx = 0, pty = 0; pub.addEventListener('touchstart', e => { ptx = e.touches[0].clientX; pty = e.touches[0].clientY; }, { passive: true });
-    pub.addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - ptx, dy = e.changedTouches[0].clientY - pty; if (dx > 90 && Math.abs(dy) < 50) pub.classList.remove('show'); }, { passive: true });
     async function openPublic(uid) {
       if (!uid) return;
       if (uid === state.uid) { pub.classList.remove('show'); window.navigate && window.navigate('profile'); return; }
@@ -1040,7 +1043,7 @@ if (CIN.configured) {
         const fb = $('#pfw'); let on = false; if (state.account) { try { on = (await CIN.getFollowingIds()).includes(uid); } catch (e) {} }
         const paint = () => { fb.textContent = on ? 'Following' : 'Follow'; fb.className = on ? 'secondary' : 'primary'; fb.style.width = '100%'; }; paint();
         fb.onclick = async () => { if (!state.account) { pub.classList.remove('show'); gate(null); return; } fb.disabled = true; try { on = await CIN.toggleFollow(uid); paint(); $('#ps1').textContent = Math.max(0, (parseInt($('#ps1').textContent, 10) || 0) + (on ? 1 : -1)); } catch (e) { toast('Could not follow. Try again.'); } fb.disabled = false; };
-        const gr = $('#pgr'); gr.innerHTML = ''; pub.classList.add('show'); pub.scrollTop = 0;
+        const gr = $('#pgr'); gr.innerHTML = ''; pub.classList.add('show'); pub.scrollTop = 0; window.__curPub = { uid, handle: p.handle, name: p.name || p.handle }; window.__pubPaint && window.__pubPaint();
         let vs = []; try { vs = (await CIN.getUserVideos(uid)).filter(v => (v.privacy || 'everyone') === 'everyone'); } catch (e) {}
         if (!vs.length) { gr.style.display = 'block'; gr.innerHTML = '<div class="as" style="color:#9da2b1;text-align:center;padding:24px 0">No public posts yet.</div>'; return; } gr.style.display = '';
         vs.forEach(v => {
@@ -1067,6 +1070,149 @@ if (CIN.configured) {
       const el = document.elementFromPoint(t.clientX, t.clientY), c = el && el.closest('.clip[data-uid]'); if (c) openPublic(c.dataset.uid);
     }, { passive: true });
   }
+
+  // ---------- swipe right anywhere on a page to go back ----------
+  { const BACKS = [['#pvw.show', '#pvwX'], ['#dmc.show', '#dmcX'], ['#dml.show', '#dmlX'], ['#ntf.show', '#ntfX'], ['#lst.show', '#lstX'], ['#pub.show', '#pbk'], ['#pvc.show', '#pvX'], ['#qrc.show', '#qrX'], ['#anl.show', '#anX'], ['#hlp.show', '#hlpBack'], ['#act.show', '#actBack'], ['#adm.show', '#admBack'], ['#settings.show', '#setBack']];
+    let bx = 0, by = 0, bt = 0, ok = false; const app = $('.app');
+    app.addEventListener('touchstart', e => { const t = e.touches[0]; bx = t.clientX; by = t.clientY; bt = Date.now(); const w = app.getBoundingClientRect(); ok = t.clientX - w.left < w.width * 0.3 && !e.target.closest('input,textarea,video,.stt'); }, { passive: true });
+    app.addEventListener('touchend', e => {
+      if (!ok) return; const t = e.changedTouches[0], dx = t.clientX - bx, dy = t.clientY - by; if (dx < 90 || Math.abs(dy) > dx * 0.5 || Date.now() - bt > 700) return;
+      for (const [sel, btn] of BACKS) { if ($(sel)) { const b = $(btn); if (b) b.click(); return; } }
+    }, { passive: true });
+  }
+
+  // ---------- skeleton loading, pull to refresh ----------
+  const skCss = document.createElement('style');
+  skCss.textContent = `#feedSk{position:absolute;inset:0 0 66px;z-index:2;background:#0b0d14;display:none;flex-direction:column;justify-content:flex-end;padding:0 16px 30px;gap:12px;pointer-events:none}#feedSk.show{display:flex}#feedSk .sk{border-radius:10px;background:linear-gradient(90deg,#171a24 25%,#262a38 50%,#171a24 75%);background-size:200% 100%;animation:cinSk 1.2s linear infinite}@keyframes cinSk{0%{background-position:200% 0}100%{background-position:-200% 0}}#ptr{position:absolute;top:70px;left:50%;transform:translate(-50%,-80px);z-index:9;background:#fff;color:#111;font-weight:800;font-size:12px;padding:8px 14px;border-radius:20px;transition:transform .2s}#ptr.on{transform:translate(-50%,0)}`;
+  document.head.append(skCss);
+  const skel0 = document.createElement('div'); skel0.id = 'feedSk';
+  skel0.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-end"><div style="flex:1;display:flex;flex-direction:column;gap:10px"><div class="sk" style="height:18px;width:45%"></div><div class="sk" style="height:14px;width:85%"></div><div class="sk" style="height:14px;width:60%"></div></div><div style="display:flex;flex-direction:column;gap:16px"><div class="sk" style="width:44px;height:44px;border-radius:50%"></div><div class="sk" style="width:44px;height:44px;border-radius:50%"></div><div class="sk" style="width:44px;height:44px;border-radius:50%"></div></div></div>';
+  $('.app').append(skel0);
+  function skel(on) { const el = $('#feedSk'); if (!el) return; if (on && !$('.clip[data-cloud]')) el.classList.add('show'); else el.classList.remove('show'); }
+  { const ptr = document.createElement('div'); ptr.id = 'ptr'; ptr.textContent = 'Refreshing...'; $('.app').append(ptr);
+    const f = $('#feed'); let py = 0, pt = 0, pok = false;
+    f.addEventListener('touchstart', e => { pok = f.scrollTop <= 2; py = e.touches[0].clientY; pt = Date.now(); }, { passive: true });
+    f.addEventListener('touchend', e => { if (!pok) return; const dy = e.changedTouches[0].clientY - py; if (dy > 110 && Date.now() - pt < 900 && f.scrollTop <= 2) { ptr.classList.add('on'); loadFeed(true).finally(() => setTimeout(() => ptr.classList.remove('on'), 500)); } }, { passive: true }); }
+
+  // ---------- helpers for the social pages ----------
+  const agoS = sec => { if (!sec) return 'now'; const d = Math.max(0, Date.now() / 1000 - sec); if (d < 60) return 'now'; if (d < 3600) return Math.floor(d / 60) + 'm'; if (d < 86400) return Math.floor(d / 3600) + 'h'; return Math.floor(d / 86400) + 'd'; };
+  const kfmt = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'K' : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K' : String(n);
+  const BELL = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2 7 2 7H4s2-1 2-7"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>';
+  const sCss = document.createElement('style');
+  sCss.textContent = `.sov{position:absolute;inset:0;z-index:37;background:#08090d;display:none;flex-direction:column}.sov.show{display:flex}.sov .shd{display:flex;align-items:center;gap:12px;padding:14px 14px 10px}.sov .shd button.sx{width:42px;height:42px;border-radius:50%;background:#ffffff18;color:#fff;display:grid;place-items:center;flex:none}.sov .shd h2{margin:0;font-size:21px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sov .sb{flex:1;overflow:auto;padding:0 14px 20px}.srow{display:flex;gap:12px;align-items:center;background:#11131a;border-radius:16px;padding:12px;margin-bottom:8px;cursor:pointer}.srow.unread{background:linear-gradient(135deg,#1b1034,#0f2a3a)}.srow .sa{flex:none;width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#b8ff4a,#159b91) center/cover;display:grid;place-items:center;font-weight:900;color:#10140b}.srow .st{flex:1;min-width:0;font-size:14px}.srow .st small{display:block;color:#9da2b1;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.srow .sd{width:10px;height:10px;border-radius:50%;background:#ff4f91;flex:none}.sempty{text-align:center;color:#9da2b1;padding:40px 10px;font-size:14px}.inbtns{display:flex;gap:10px;margin:14px 0 4px}.inbtns button{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px 8px;border-radius:16px;font-weight:800;color:#fff;background:linear-gradient(135deg,#8b5cf6,#ff4f91);position:relative}.inbtns button+button{background:linear-gradient(135deg,#2fb58a,#4fc3ff)}.inbtns em{font-style:normal;background:#fff;color:#111;border-radius:10px;padding:1px 7px;font-size:12px;display:none}.inbtns em.on{display:inline-block}.dmlog{flex:1;overflow:auto;padding:6px 14px;display:flex;flex-direction:column;gap:6px}.bub{max-width:78%;padding:9px 13px;border-radius:18px;font-size:14px;word-break:break-word;background:#1d2029;align-self:flex-start}.bub.me{align-self:flex-end;background:linear-gradient(135deg,#8b5cf6,#ff4f91);color:#fff}.dmin{display:flex;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom));background:#0b0d14}.dmin input{flex:1;min-width:0;background:#191c25;border:1px solid #292d39;border-radius:22px;padding:12px 16px;color:#fff;outline:0;font-size:15px}.dmin button{background:linear-gradient(135deg,#b8ff4a,#4fe0a0);color:#10140b;font-weight:900;border-radius:22px;padding:0 18px}.tg{background:none;color:inherit;font:inherit;padding:0;margin-right:6px;font-weight:700}.vws{font-size:12px;color:#d0d3de;margin-top:4px}.tagchips{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px}.tagchips button{flex:none;background:linear-gradient(135deg,#2a1b4a,#14344a);color:#b8ff4a;font-weight:800;font-size:13px;padding:8px 13px;border-radius:20px}`;
+  document.head.append(sCss);
+  const mkOv = (id, title, extra) => { const o = document.createElement('div'); o.className = 'sov'; o.id = id; o.innerHTML = '<div class="shd"><button type="button" class="sx" id="' + id + 'X" aria-label="Back">' + CI.svg('back', 22) + '</button><h2 id="' + id + 'T">' + title + '</h2>' + (extra || '') + '</div>'; $('.app').append(o); $('#' + id + 'X').onclick = () => o.classList.remove('show'); return o; };
+  const pcP = {}; const profOf = async uid => { if (!pcP[uid]) pcP[uid] = CIN.getProfile(uid).catch(() => null); return pcP[uid]; };
+  const avFill = (el, uid, nm) => { circle(el, '', nm || '?'); photoOf(uid).then(u => u && circle(el, u, nm)); };
+  const openPub = uid => window.openPublicProfile(uid);
+
+  // ---------- notifications (bell) ----------
+  let notes = [], unsubN = null, unsubC2 = null, chatsList = [], dmUnread = 0;
+  const ntf = mkOv('ntf', 'Notifications'); ntf.insertAdjacentHTML('beforeend', '<div class="sb" id="ntfB"></div>');
+  function hubDotPaint() { const nUn = notes.filter(n => !n.read).length; const d = $('#hubDot'); if (d) d.classList.toggle('on', nUn + dmUnread > 0); const e1 = $('#nBadge'), e2 = $('#mBadge'); if (e1) { e1.textContent = nUn; e1.classList.toggle('on', nUn > 0); } if (e2) { e2.textContent = dmUnread; e2.classList.toggle('on', dmUnread > 0); } }
+  const NT = { like: 'liked your post', follow: 'started following you', comment: 'commented on your post' };
+  function paintNotes() {
+    const b = $('#ntfB'); b.innerHTML = ''; if (!notes.length) { b.innerHTML = '<div class="sempty">Nothing yet. When someone likes, comments or follows, it shows up here.</div>'; return; }
+    notes.forEach(n => { const r = document.createElement('div'); r.className = 'srow' + (n.read ? '' : ' unread'); r.innerHTML = '<div class="sa"></div><div class="st"><b></b> <span></span><small></small></div>' + (n.read ? '' : '<i class="sd"></i>');
+      avFill(r.querySelector('.sa'), n.from, n.fromName); r.querySelector('b').textContent = '@' + n.fromHandle; r.querySelector('span').textContent = NT[n.type] || 'sent you something'; r.querySelector('small').textContent = (n.text ? '"' + n.text + '"  ·  ' : '') + agoS(n.createdAt && n.createdAt.seconds);
+      r.onclick = () => { openPub(n.from); }; b.append(r); });
+  }
+  function openNotes() { if (!state.account) { gate(null); return; } paintNotes(); ntf.classList.add('show'); const ids = notes.filter(n => !n.read).map(n => n.id); if (ids.length) CIN.markNotificationsRead(ids).catch(() => {}); }
+
+  // ---------- direct messages ----------
+  const dml = mkOv('dml', 'Messages'); dml.insertAdjacentHTML('beforeend', '<div class="sb" id="dmlB"></div>');
+  const dmc = mkOv('dmc', ''); dmc.querySelector('.shd').insertAdjacentHTML('beforeend', ''); dmc.insertAdjacentHTML('beforeend', '<div class="dmlog" id="dmLog"></div><div class="dmin"><input id="dmIn" maxlength="500" placeholder="Message"><button type="button" id="dmSend">Send</button></div>');
+  let curChat = null, unsubChat = null;
+  const unreadChat = c => c.lastFrom && c.lastFrom !== state.uid && (!c['r_' + state.uid] || (c.lastAt && c['r_' + state.uid].seconds < c.lastAt.seconds));
+  async function paintChats() {
+    dmUnread = chatsList.filter(unreadChat).length; hubDotPaint(); const b = $('#dmlB'); if (!dml.classList.contains('show')) return; b.innerHTML = '';
+    const list = chatsList.slice().sort((a, c) => ((c.lastAt && c.lastAt.seconds) || 9e12) - ((a.lastAt && a.lastAt.seconds) || 9e12));
+    if (!list.length) { b.innerHTML = '<div class="sempty">No messages yet. Open someone\'s profile and tap Message.</div>'; return; }
+    for (const c of list) { const other = c.members.find(m => m !== state.uid); if (!other || blocked.has(other)) continue; const un = unreadChat(c);
+      const r = document.createElement('div'); r.className = 'srow' + (un ? ' unread' : ''); r.innerHTML = '<div class="sa"></div><div class="st"><b></b><small></small></div>' + (un ? '<i class="sd"></i>' : '');
+      r.querySelector('small').textContent = (c.lastFrom === state.uid ? 'You: ' : '') + (c.last || ''); b.append(r); r.onclick = () => openChat(other);
+      profOf(other).then(p => { r.querySelector('b').textContent = p ? (p.name || p.handle) : 'CIN member'; avFill(r.querySelector('.sa'), other, p && (p.name || p.handle)); }); }
+  }
+  function openMsgs() { if (!state.account) { gate(null); return; } dml.classList.add('show'); paintChats(); }
+  async function openChat(uid) {
+    if (!state.account) { gate(null); return; } if (uid === state.uid) return;
+    curChat = uid; const p = await profOf(uid); $('#dmcT').textContent = p ? (p.name || p.handle) : 'Chat'; $('#dmcT').style.cursor = 'pointer'; $('#dmcT').onclick = () => openPub(uid);
+    const log = $('#dmLog'); log.innerHTML = ''; dmc.classList.add('show'); if (unsubChat) unsubChat();
+    unsubChat = CIN.watchChat(uid, items => { const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 120; log.innerHTML = ''; if (!items.length) log.innerHTML = '<div class="sempty">Say hello.</div>'; items.forEach(m => { const d = document.createElement('div'); d.className = 'bub' + (m.from === state.uid ? ' me' : ''); d.textContent = m.text; log.append(d); }); if (atEnd || items.length < 12) log.scrollTop = log.scrollHeight; CIN.markChatRead(uid); });
+  }
+  $('#dmcX').onclick = () => { dmc.classList.remove('show'); if (unsubChat) { unsubChat(); unsubChat = null; } curChat = null; };
+  async function sendDm() {
+    const inp = $('#dmIn'), t = inp.value.trim(); if (!t || !curChat) return; if (blocked.has(curChat)) { toast('You blocked this person. Unblock them to message.'); return; } if (!rateOk()) return;
+    inp.value = ''; try { await CIN.sendDM(curChat, t); } catch (e) { inp.value = t; toast('Could not send. This person may have blocked you, or the Firestore rules are not published yet.'); }
+  }
+  $('#dmSend').onclick = sendDm; $('#dmIn').addEventListener('keydown', e => { if (e.key === 'Enter') sendDm(); });
+
+  // start / stop live listeners when someone logs in or out
+  CIN.onUser(u => {
+    if (unsubN) { unsubN(); unsubN = null; } if (unsubC2) { unsubC2(); unsubC2 = null; } notes = []; chatsList = []; dmUnread = 0; hubDotPaint();
+    if (!u) return;
+    try { unsubN = CIN.watchNotifications(l => { notes = l; hubDotPaint(); if (ntf.classList.contains('show')) paintNotes(); }); unsubC2 = CIN.watchChats(l => { chatsList = l; paintChats(); }); } catch (e) {}
+  });
+  { const ib = document.createElement('div'); ib.className = 'inbtns';
+    ib.innerHTML = '<button type="button" id="nBtn">' + BELL + 'Notifications <em id="nBadge"></em></button><button type="button" id="mBtn">' + CI.svg('chat', 22) + 'Messages <em id="mBadge"></em></button>';
+    $('#inboxSeg').before(ib); $('#nBtn').onclick = openNotes; $('#mBtn').onclick = openMsgs; }
+  { const nr = ['notes', 'Notifications', ''], mr = ['msgs', 'Messages', ''], br = ['blocked', 'Blocked accounts', '']; MENU[0][1].push(nr, mr, br); const ma3 = window.menuAction;
+    window.menuAction = function (k) { if (k === 'notes') { closeDrawer(); openNotes(); return; } if (k === 'msgs') { closeDrawer(); openMsgs(); return; } if (k === 'blocked') { closeDrawer(); openBlocked(); return; } return ma3.apply(this, arguments); }; }
+
+  // ---------- block and report a person, buttons on the public profile ----------
+  window.__pubPaint = () => { const c = window.__curPub; if (!c) return; $('#pblk').textContent = blocked.has(c.uid) ? 'Unblock' : 'Block'; };
+  $('#pmsg').onclick = () => { const c = window.__curPub; if (!c) return; $('#pub').classList.remove('show'); openChat(c.uid); };
+  $('#pblk').onclick = async () => {
+    const c = window.__curPub; if (!c) return; if (!state.account) { $('#pub').classList.remove('show'); gate(null); return; }
+    try {
+      if (blocked.has(c.uid)) { await CIN.unblockUser(c.uid); blocked.delete(c.uid); toast('@' + c.handle + ' unblocked'); }
+      else { if (!confirm('Block @' + c.handle + '?\n\nTheir videos will be hidden from you and they cannot message you. You can unblock them any time in Menu > Blocked accounts.')) return; await CIN.blockUser(c.uid); blocked.add(c.uid); $$('.clip[data-uid]').forEach(el => { if (el.dataset.uid === c.uid) { const v = el.querySelector('video'); if (v) v.pause(); el.remove(); } }); toast('@' + c.handle + ' blocked'); $('#pub').classList.remove('show'); }
+      window.__pubPaint();
+    } catch (e) { toast('Could not do that. Publish the new Firestore rules.'); }
+  };
+  $('#prpt').onclick = async () => {
+    const c = window.__curPub; if (!c) return; if (!state.account) { $('#pub').classList.remove('show'); gate(null); return; }
+    const r = prompt('Why are you reporting @' + c.handle + '? (for example: fake account, spam, abuse, nudity)', ''); if (r === null || !r.trim()) return;
+    try { await CIN.reportUser(c.uid, c.handle, r.trim()); toast('Report sent. Thank you.'); } catch (e) { toast('Could not send the report. Try again.'); }
+  };
+  async function openBlocked() {
+    if (!state.account) { gate(null); return; }
+    try { const ids = await CIN.listBlocks(); const ps = await Promise.all(ids.map(profOf)); showInfo('Blocked accounts', ids.length ? ['People you blocked. Tap one to unblock.'] : ['You have not blocked anyone.'], ids.map((id, i) => ['Unblock @' + ((ps[i] && ps[i].handle) || 'member'), async () => { try { await CIN.unblockUser(id); blocked.delete(id); toast('Unblocked'); $('#infoModal').classList.remove('show'); } catch (e) { toast('Could not unblock'); } }])); }
+    catch (e) { toast('Could not load the list'); }
+  }
+
+  // ---------- hashtag pages and sound pages, view counts ----------
+  const lst = mkOv('lst', ''); lst.classList.add('pub'); lst.style.display = ''; lst.insertAdjacentHTML('beforeend', '<div class="sb"><div class="ph2" id="lstS" style="color:#9da2b1;margin:0 2px 12px"></div><div class="pgr" id="lstG"></div></div>');
+  const playPost = v => { const pvw = $('#pvw'), bx = $('#pvwB'); bx.innerHTML = ''; let el; if (v.type === 'photo' || v.photoURL) { el = document.createElement('img'); el.src = v.photoURL; } else { el = document.createElement('video'); el.src = v.videoURL; el.controls = true; el.autoplay = true; el.playsInline = true; } bx.append(el); pvw.classList.add('show'); };
+  async function openList(title, sub, loader) {
+    $('#lstT').textContent = title; $('#lstS').textContent = sub; const g = $('#lstG'); g.style.display = 'block'; g.innerHTML = '<div class="sempty">Loading...</div>'; lst.classList.add('show');
+    try {
+      const vs = (await loader()).filter(v => (v.privacy || 'everyone') === 'everyone' && !blocked.has(v.uid)).sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0));
+      $('#lstS').textContent = sub + (vs.length ? ' · ' + vs.length + ' post' + (vs.length > 1 ? 's' : '') : '');
+      if (!vs.length) { g.innerHTML = '<div class="sempty">No posts yet.</div>'; return; } g.style.display = ''; g.innerHTML = '';
+      vs.forEach(v => { const b = document.createElement('button'); b.type = 'button'; const th = v.photoURL || (v.videoURL ? v.videoURL.replace('/upload/', '/upload/so_0,w_300,h_400,c_fill/').replace(/\.(mp4|mov|webm)$/i, '.jpg') : ''); if (th) { const im = document.createElement('img'); im.alt = ''; im.loading = 'lazy'; im.src = th; im.onerror = () => im.remove(); b.append(im); } const sm = document.createElement('small'); sm.textContent = '@' + v.handle; b.append(sm); b.onclick = () => playPost(v); g.append(b); });
+    } catch (e) { g.innerHTML = '<div class="sempty">Could not load. Check your internet.</div>'; }
+  }
+  window.openTagPage = tag => openList('#' + tag, 'Videos and photos with this hashtag', () => CIN.videosByTag(tag));
+  const viewed = (() => { try { return new Set(JSON.parse(localStorage.getItem('cin_viewed') || '[]')); } catch (e) { return new Set(); } })();
+  const vio = new IntersectionObserver(es => es.forEach(en => {
+    const c = en.target; clearTimeout(c._vt); if (!en.isIntersecting || en.intersectionRatio < 0.6) return;
+    c._vt = setTimeout(() => { const id = c.dataset.id; if (!id || viewed.has(id) || !state.account || c.dataset.uid === state.uid) return; viewed.add(id); try { localStorage.setItem('cin_viewed', JSON.stringify([...viewed].slice(-400))); } catch (e) {} CIN.countView(id).then(() => { c.dataset.views = (+c.dataset.views || 0) + 1; paintClipExtras(c); }).catch(() => {}); }, 2000);
+  }), { threshold: [0.6] });
+  function paintClipExtras(c) {
+    const info = c.querySelector('.clip-info'); if (!info) return;
+    let vw = info.querySelector('.vws'); if (!vw) { vw = document.createElement('div'); vw.className = 'vws'; const snd = info.querySelector('.sound'); snd ? snd.before(vw) : info.append(vw); }
+    const n = +c.dataset.views || 0; vw.textContent = kfmt(n) + (n === 1 ? ' view' : ' views');
+    if (!c.dataset.tg) { c.dataset.tg = '1'; const tg = info.querySelector('.tags'); if (tg) { const tags = (tg.textContent.match(/#[a-z0-9_]+/gi) || []); tg.innerHTML = ''; tags.forEach(t => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tg'; b.textContent = t; b.onclick = e => { e.stopPropagation(); window.openTagPage(t.slice(1).toLowerCase()); }; tg.append(b); }); }
+      const sn = info.querySelector('.sound'); if (sn) { sn.style.cursor = 'pointer'; sn.onclick = e => { e.stopPropagation(); if (c.dataset.sname) { const nm = c.dataset.sname; openList('Sound: ' + decEnt(nm).slice(0, 40), 'Videos and photos using this sound', () => CIN.videosBySound(c.dataset.sfield, nm)); } else if (c.dataset.uid) openPub(c.dataset.uid); }; } }
+  }
+  const clipWatch = new MutationObserver(() => $$('.clip[data-cloud]').forEach(c => { if (!c._ex) { c._ex = 1; paintClipExtras(c); vio.observe(c); } }));
+  clipWatch.observe($('#feed'), { childList: true });
+  // trending hashtags row on the Friends page, and #tag search
+  { const row = document.createElement('div'); row.className = 'tagchips'; row.id = 'tagChips'; $('#discover .searchbox').after(row);
+    const paintTags = () => { const cnt = {}; $$('.clip[data-cloud] .tags .tg').forEach(b => { const k = b.textContent.toLowerCase(); cnt[k] = (cnt[k] || 0) + 1; }); const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 10); row.innerHTML = ''; top.forEach(([t]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => window.openTagPage(t.slice(1)); row.append(b); }); row.style.display = top.length ? '' : 'none'; };
+    setInterval(() => { if ($('#discover').classList.contains('show')) paintTags(); }, 1500);
+    $('#searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') { const v = $('#searchInput').value.trim(); if (v.startsWith('#') && v.length > 1) window.openTagPage(v.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, '')); } }); }
   // opening a profile link (someone scanned a QR code)
   const pv = document.createElement('div'); pv.className = 'qrc'; pv.id = 'pvc';
   pv.innerHTML = '<button type="button" class="qx" id="pvX" aria-label="Close">' + CI.svg('close', 22) + '</button><div class="qr-card"><div class="qr-av" id="pvAv"></div><h2 id="pvName"></h2><div class="h" id="pvHandle"></div><p id="pvBio" style="margin:0 0 12px;color:#333;font-size:14px"></p><p id="pvStat" style="margin:0 0 14px;color:#555;font-size:13px"></p><button type="button" id="pvFollow" class="primary" style="width:100%">Follow</button></div>';
