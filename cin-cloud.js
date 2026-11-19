@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=32";
+import { CIN } from "./cin-backend.js?v=33";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1083,7 +1083,7 @@ if (CIN.configured) {
 
   // ---------- skeleton loading, pull to refresh ----------
   const skCss = document.createElement('style');
-  skCss.textContent = `#feedSk{position:absolute;inset:0 0 66px;z-index:2;background:#0b0d14;display:none;flex-direction:column;justify-content:flex-end;padding:0 16px 30px;gap:12px;pointer-events:none}#feedSk.show{display:flex}#feedSk .sk{border-radius:10px;background:linear-gradient(90deg,#171a24 25%,#262a38 50%,#171a24 75%);background-size:200% 100%;animation:cinSk 1.2s linear infinite}@keyframes cinSk{0%{background-position:200% 0}100%{background-position:-200% 0}}#ptr{position:absolute;top:70px;left:50%;transform:translate(-50%,-80px);z-index:9;background:#fff;color:#111;font-weight:800;font-size:12px;padding:8px 14px;border-radius:20px;transition:transform .2s}#ptr.on{transform:translate(-50%,0)}`;
+  skCss.textContent = `#feedSk{position:absolute;inset:0 0 66px;z-index:2;background:#0b0d14;display:none;flex-direction:column;justify-content:flex-end;padding:0 16px 30px;gap:12px;pointer-events:none}#feedSk.show{display:flex}#feedSk .sk{border-radius:10px;background:linear-gradient(90deg,#171a24 25%,#262a38 50%,#171a24 75%);background-size:200% 100%;animation:cinSk 1.2s linear infinite}@keyframes cinSk{0%{background-position:200% 0}100%{background-position:-200% 0}}#ptr{position:absolute;top:72px;left:50%;transform:translate(-50%,-140px);opacity:0;visibility:hidden;pointer-events:none;z-index:9;background:#fff;color:#111;font-weight:800;font-size:12px;padding:8px 14px;border-radius:20px;transition:transform .2s,opacity .2s,visibility .2s}#ptr.on{transform:translate(-50%,0);opacity:1;visibility:visible}`;
   document.head.append(skCss);
   const skel0 = document.createElement('div'); skel0.id = 'feedSk';
   skel0.innerHTML = '<div style="display:flex;gap:12px;align-items:flex-end"><div style="flex:1;display:flex;flex-direction:column;gap:10px"><div class="sk" style="height:18px;width:45%"></div><div class="sk" style="height:14px;width:85%"></div><div class="sk" style="height:14px;width:60%"></div></div><div style="display:flex;flex-direction:column;gap:16px"><div class="sk" style="width:44px;height:44px;border-radius:50%"></div><div class="sk" style="width:44px;height:44px;border-radius:50%"></div><div class="sk" style="width:44px;height:44px;border-radius:50%"></div></div></div>';
