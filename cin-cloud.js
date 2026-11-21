@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=39";
+import { CIN } from "./cin-backend.js?v=40";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -329,6 +329,30 @@ if (CIN.configured) {
   }
 
   // ---------- Feed ----------
+
+  // ---------- reliable video playback: lighter H.264 version first, original as backup, poster, loading and error states ----------
+  { const st = document.createElement('style');
+    st.textContent = `.vstate{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:1;background:#000b;color:#fff;padding:11px 18px;border-radius:22px;font-size:13px;font-weight:700;pointer-events:none;display:none;text-align:center;max-width:80%}.vstate.err{pointer-events:auto;background:#5a1d28;border:1px solid #ff4f6a}`;
+    document.head.append(st); }
+  function mountVideo(clip, v) {
+    const vd = clip.querySelector('video'), orig = v.videoURL || '';
+    const ok = /^https:\/\/res\.cloudinary\.com\/.+\/video\/upload\/v?\d/.test(orig);
+    const fast = ok ? orig.replace('/upload/', '/upload/f_mp4,vc_h264,ac_aac,q_auto:eco,w_720,c_limit/').replace(/\.[a-z0-9]+$/i, '.mp4') : orig;
+    if (ok) vd.poster = orig.replace('/upload/', '/upload/so_0,w_540,c_limit,f_jpg,q_auto/').replace(/\.[a-z0-9]+$/i, '.jpg');
+    vd.preload = 'metadata'; vd.setAttribute('playsinline', '');
+    const b = document.createElement('div'); b.className = 'vstate'; clip.append(b);
+    const set = (t, err) => { b.textContent = t; b.style.display = t ? 'block' : 'none'; b.classList.toggle('err', !!err); };
+    let tried = fast === orig ? 1 : 0;
+    set('Loading video...');
+    vd.addEventListener('canplay', () => set('')); vd.addEventListener('playing', () => set(''));
+    vd.addEventListener('waiting', () => set('Buffering...')); vd.addEventListener('stalled', () => { if (!vd.paused && vd.readyState < 3) set('Slow connection...'); });
+    vd.addEventListener('error', () => {
+      if (!tried) { tried = 1; set('Loading video...'); vd.src = orig; vd.load(); return; }
+      set('This video cannot be played. Tap to try again.', true);
+      b.onclick = e => { e.stopPropagation(); set('Loading video...'); vd.src = orig; vd.load(); const pr = vd.play(); pr && pr.catch(() => {}); };
+    });
+    vd.src = fast;
+  }
   function buildClip(v, liked) {
     const clip = document.createElement('section');
     clip.className = 'clip'; clip.dataset.id = v.id; clip.dataset.cloud = '1'; clip.dataset.uid = v.uid; clip.dataset.cc = v.commentsCount || 0;
@@ -336,7 +360,7 @@ if (CIN.configured) {
     clip.innerHTML = '<video playsinline loop></video><div class="shade"></div><div class="clip-info"><div class="creator"></div><div class="caption"></div><div class="tags"></div><div class="sound">Original sound</div></div><div class="actions"><div class="avatar"></div><button class="action like"><span>' + CI.heart + '</span><small class="like-count">0</small></button><button class="action comments"><span>' + CI.comment + '</span><small>Comments</small></button><button class="action share"><span>' + CI.share + '</span><small>Share</small></button></div>';
     const photo = v.type === 'photo';
     if (photo) { const im = document.createElement('img'); im.className = 'pimg'; im.alt = 'Photo by @' + v.handle; im.src = v.photoURL; clip.querySelector('video').replaceWith(im); }
-    else clip.querySelector('video').src = v.videoURL;
+    else mountVideo(clip, v);
     clip.querySelector('.creator').textContent = '@' + v.handle; if (state.uid && v.uid === state.uid && (v.privacy || 'everyone') !== 'everyone') { const pt = document.createElement('span'); pt.className = 'privtag'; pt.innerHTML = CI.svg('lock', 12) + (v.privacy === 'only_me' ? 'Only you' : 'Friends'); clip.querySelector('.creator').append(pt); }
     clip.querySelector('.caption').textContent = v.caption || '';
     clip.querySelector('.tags').textContent = (v.tags || []).map(t => '#' + t).join(' ');
