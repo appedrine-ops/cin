@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=38";
+import { CIN } from "./cin-backend.js?v=39";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -839,7 +839,7 @@ if (CIN.configured) {
   function pageAbout() {
     $('#hlpTitle').textContent = 'About CIN';
     $('#hlpBody').innerHTML = '<div class="hlp-card" style="text-align:center"><img src="logo.png" alt="" width="72" height="72" style="border-radius:18px"><b style="font-size:20px;margin-top:8px">CIN</b><div class="hlp-p" style="margin:0">Create. Inspire. Network.</div></div>' +
-      card('Version', 'Beta. New things are added often. Tell us what to improve.') + card('Who runs it', 'CIN is built and run by its founder and CEO, Mugonyi Edrine Dickson, in Kampala, Uganda.') +
+      card('Version', 'Beta. New things are added often. Tell us what to improve.') + card('Who runs it', 'CIN is built and run by its founder, Mugonyi Edrine Dickson, in Kampala, Uganda.') +
       card('Free and independent', 'CIN is free to use. Videos are stored on free cloud plans, so very large files are limited.') +
       '<button type="button" class="secondary" data-go="help">Help and feedback</button><a href="about.html" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:12px;color:#8ab4ff;font-weight:700">Founder page</a>';
     $$('#hlpBody [data-go]').forEach(b => b.onclick = () => openHelp(b.dataset.go));
