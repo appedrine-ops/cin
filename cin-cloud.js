@@ -1,6 +1,6 @@
 // CIN cloud glue: connects the existing index.html screens to the Firebase backend.
 // If cin-backend.js has no Firebase config yet, this file does nothing and the app stays in local-demo mode.
-import { CIN } from "./cin-backend.js?v=36";
+import { CIN } from "./cin-backend.js?v=38";
 
 if (CIN.configured) {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -839,9 +839,9 @@ if (CIN.configured) {
   function pageAbout() {
     $('#hlpTitle').textContent = 'About CIN';
     $('#hlpBody').innerHTML = '<div class="hlp-card" style="text-align:center"><img src="logo.png" alt="" width="72" height="72" style="border-radius:18px"><b style="font-size:20px;margin-top:8px">CIN</b><div class="hlp-p" style="margin:0">Create. Inspire. Network.</div></div>' +
-      card('Version', 'Beta. New things are added often. Tell us what to improve.') + card('Who runs it', 'CIN is built and run by Dickson in Kampala, Uganda.') +
+      card('Version', 'Beta. New things are added often. Tell us what to improve.') + card('Who runs it', 'CIN is built and run by its founder and CEO, Mugonyi Edrine Dickson, in Kampala, Uganda.') +
       card('Free and independent', 'CIN is free to use. Videos are stored on free cloud plans, so very large files are limited.') +
-      '<button type="button" class="secondary" data-go="help">Help and feedback</button>';
+      '<button type="button" class="secondary" data-go="help">Help and feedback</button><a href="about.html" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:12px;color:#8ab4ff;font-weight:700">Founder page</a>';
     $$('#hlpBody [data-go]').forEach(b => b.onclick = () => openHelp(b.dataset.go));
   }
   function openHelp(k) { ({ help: pageHelp, rules: pageRules, privacy: pagePrivacy, about: pageAbout }[k] || pageHelp)(); $('#hlpBody').scrollTop = 0; hlp.classList.add('show'); }
@@ -1075,9 +1075,17 @@ if (CIN.configured) {
   { const BACKS = [['#pvw.show', '#pvwX'], ['#dmc.show', '#dmcX'], ['#dml.show', '#dmlX'], ['#ntf.show', '#ntfX'], ['#lst.show', '#lstX'], ['#pub.show', '#pbk'], ['#pvc.show', '#pvX'], ['#qrc.show', '#qrX'], ['#anl.show', '#anX'], ['#hlp.show', '#hlpBack'], ['#act.show', '#actBack'], ['#adm.show', '#admBack'], ['#settings.show', '#setBack']];
     let bx = 0, by = 0, bt = 0, ok = false; const app = $('.app');
     app.addEventListener('touchstart', e => { const t = e.touches[0]; bx = t.clientX; by = t.clientY; bt = Date.now(); const w = app.getBoundingClientRect(); ok = t.clientX - w.left < w.width * 0.3 && !e.target.closest('input,textarea,video,.stt'); }, { passive: true });
+    // closes the top-most page or sheet; returns true if it closed something
+    window.cinGoBack = () => {
+      for (const [sel, btn] of BACKS) { if ($(sel)) { const b = $(btn); if (b) { b.click(); return true; } } }
+      const dr = $('.drawer.show, .drawer.open'); if (dr) { try { closeDrawer(); } catch (e) { dr.classList.remove('show', 'open'); } return true; }
+      const md = $('.modal.show'); if (md) { md.classList.remove('show'); return true; }
+      if (state.screen && state.screen !== 'home') { navigate('home'); return true; }
+      return false;
+    };
     app.addEventListener('touchend', e => {
       if (!ok) return; const t = e.changedTouches[0], dx = t.clientX - bx, dy = t.clientY - by; if (dx < 90 || Math.abs(dy) > dx * 0.5 || Date.now() - bt > 700) return;
-      for (const [sel, btn] of BACKS) { if ($(sel)) { const b = $(btn); if (b) b.click(); return; } }
+      window.cinGoBack();
     }, { passive: true });
   }
 
@@ -1227,6 +1235,15 @@ if (CIN.configured) {
     const paintTags = () => { const cnt = {}; $$('.clip[data-cloud] .tags .tg').forEach(b => { const k = b.textContent.toLowerCase(); cnt[k] = (cnt[k] || 0) + 1; }); const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 10); row.innerHTML = ''; top.forEach(([t]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.onclick = () => window.openTagPage(t.slice(1)); row.append(b); }); row.style.display = top.length ? '' : 'none'; };
     setInterval(() => { if ($('#discover').classList.contains('show')) paintTags(); }, 1500);
     $('#searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') { const v = $('#searchInput').value.trim(); if (v.startsWith('#') && v.length > 1) window.openTagPage(v.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, '')); } }); }
+
+  // ---------- phone Back button: close pages first, then press Back twice to leave the app ----------
+  { let armed = 0; const guard = () => { try { history.pushState({ cin: 1 }, '', location.href); } catch (e) {} };
+    try { history.replaceState({ cin: 0 }, '', location.href); } catch (e) {} guard();
+    window.addEventListener('popstate', () => {
+      if (window.cinGoBack && window.cinGoBack()) { guard(); return; }
+      if (Date.now() - armed < 2200) { armed = 0; history.back(); return; }
+      armed = Date.now(); guard(); toast('Press Back again to exit CIN');
+    }); }
   // opening a profile link (someone scanned a QR code)
   const pv = document.createElement('div'); pv.className = 'qrc'; pv.id = 'pvc';
   pv.innerHTML = '<button type="button" class="qx" id="pvX" aria-label="Close">' + CI.svg('close', 22) + '</button><div class="qr-card"><div class="qr-av" id="pvAv"></div><h2 id="pvName"></h2><div class="h" id="pvHandle"></div><p id="pvBio" style="margin:0 0 12px;color:#333;font-size:14px"></p><p id="pvStat" style="margin:0 0 14px;color:#555;font-size:13px"></p><button type="button" id="pvFollow" class="primary" style="width:100%">Follow</button></div>';

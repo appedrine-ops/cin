@@ -7,7 +7,8 @@
 <meta name="referrer" content="no-referrer">
 <!-- Security: blocks outside scripts, trackers and network calls. When you add Firebase, allow its hosts in script-src and connect-src. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; manifest-src 'self'; worker-src 'self'; style-src 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://*.jamendo.com; media-src 'self' blob: https://res.cloudinary.com https://*.jamendo.com; font-src 'self' data:; connect-src 'self' https://api.cloudinary.com https://api.jamendo.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com; base-uri 'none'; form-action 'none'; object-src 'none'">
-<meta name="description" content="CIN (Create. Inspire. Network.) is a free short-video, photo and stories app for creators in Uganda and beyond. Founded by Mugonyi Edrine Dickson, an application developer and student at Kyambogo University.">
+<meta name="description" content="CIN (Create. Inspire. Network.) is a free short-video, photo and stories app from Uganda. Founder and CEO: Mugonyi Edrine Dickson, an application developer at Kyambogo University.">
+<link rel="canonical" href="https://appedrine-ops.github.io/cin/">
 <meta name="author" content="Mugonyi Edrine Dickson">
 <meta property="og:type" content="website">
 <meta property="og:title" content="CIN - Create. Inspire. Network.">
@@ -15,16 +16,16 @@
 <meta property="og:url" content="https://appedrine-ops.github.io/cin/">
 <meta property="og:image" content="https://appedrine-ops.github.io/cin/icon-512.png">
 <meta name="twitter:card" content="summary">
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebApplication","name":"CIN","alternateName":"Create. Inspire. Network.","url":"https://appedrine-ops.github.io/cin/","applicationCategory":"SocialNetworkingApplication","operatingSystem":"Any","description":"A free short-video, photo and stories app for creators.","founder":{"@id":"https://appedrine-ops.github.io/cin/#founder"},"creator":{"@id":"https://appedrine-ops.github.io/cin/#founder"}},{"@type":"Person","@id":"https://appedrine-ops.github.io/cin/#founder","name":"Mugonyi Edrine Dickson","jobTitle":"Founder of CIN and application developer","alumniOf":{"@type":"CollegeOrUniversity","name":"Kyambogo University"},"url":"https://github.com/appedrine-ops","sameAs":["https://github.com/appedrine-ops","https://www.linkedin.com/in/mugonyi-edrine-dickson-152aab390"]}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://appedrine-ops.github.io/cin/#org","name":"CIN","alternateName":["CIN App","Create. Inspire. Network."],"url":"https://appedrine-ops.github.io/cin/","logo":"https://appedrine-ops.github.io/cin/icon-512.png","description":"CIN (Create. Inspire. Network.) is a free short-video, photo and stories app from Uganda.","founder":{"@id":"https://appedrine-ops.github.io/cin/#founder"},"sameAs":["https://www.youtube.com/@cinapp","https://github.com/appedrine-ops"]},{"@type":"WebApplication","name":"CIN","alternateName":"Create. Inspire. Network.","url":"https://appedrine-ops.github.io/cin/","applicationCategory":"SocialNetworkingApplication","operatingSystem":"Any","description":"A free short-video, photo and stories app for creators.","creator":{"@id":"https://appedrine-ops.github.io/cin/#founder"},"publisher":{"@id":"https://appedrine-ops.github.io/cin/#org"}},{"@type":"Person","@id":"https://appedrine-ops.github.io/cin/#founder","name":"Mugonyi Edrine Dickson","jobTitle":"Founder and CEO of CIN","worksFor":{"@id":"https://appedrine-ops.github.io/cin/#org"},"alumniOf":{"@type":"CollegeOrUniversity","name":"Kyambogo University"},"url":"https://appedrine-ops.github.io/cin/about.html","sameAs":["https://github.com/appedrine-ops","https://www.linkedin.com/in/mugonyi-edrine-dickson-152aab390","https://www.youtube.com/@cinapp"]}]}</script>
 <link rel="icon" href="logo.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CIN">
-<script src="cin-config.js?v=36"></script><script src="cin-icons.js?v=36"></script>
-<script src="cin-qr.js?v=36"></script>
-<title>CIN — Create. Inspire. Network.</title>
+<script src="cin-config.js?v=38"></script><script src="cin-icons.js?v=38"></script>
+<script src="cin-qr.js?v=38"></script>
+<title>CIN App - Create. Inspire. Network. | Founder and CEO Mugonyi Edrine Dickson</title>
 <style>
 :root{--bg:#08090d;--panel:#11131a;--panel2:#191c25;--text:#f7f7fb;--muted:#9da2b1;--accent:#b8ff4a;--pink:#ff4f91;--line:#292d39}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}button,input,textarea{font:inherit}button{cursor:pointer;color:inherit;border:0}
@@ -242,9 +243,9 @@ $('#drawerBg').onclick=closeDrawer;$('#drawerClose').onclick=closeDrawer;
 updateProfile();syncLikes();renderHub();paintAccount();paintMusic();{const h=decodeURIComponent(location.hash.slice(1)),t=h&&$('.clip[data-id="'+CSS.escape(h)+'"]');if(t)setTimeout(()=>t.scrollIntoView(),150);}$('#followingCount').textContent=state.following.length;$$('.clip').forEach(c=>{setupVideo(c);addFollow(c);setupInfo(c);});renderPeople();
 </script>
 <script>setTimeout(function(){var s=document.getElementById("splash");if(s){s.classList.add("hide");setTimeout(function(){s.remove()},400)}},1200)</script>
-<script src="cin-extras.js?v=36"></script>
-<script src="cin-editor.js?v=36"></script>
-<script type="module" src="cin-cloud.js?v=36"></script><script type="module" src="cin-live.js?v=36"></script>
+<script src="cin-extras.js?v=38"></script>
+<script src="cin-editor.js?v=38"></script>
+<script type="module" src="cin-cloud.js?v=38"></script><script type="module" src="cin-live.js?v=38"></script>
 
 <script>
 (function(){
